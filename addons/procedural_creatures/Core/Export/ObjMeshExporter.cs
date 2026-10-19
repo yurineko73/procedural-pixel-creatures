@@ -47,10 +47,12 @@ namespace PixelCreatures.Core.Export
             obj.AppendLine("# Procedural Pixel Creatures - static primitive preview; not a skinned mesh");
             obj.Append("mtllib ").AppendLine(materialFile);
             var emitter = new MeshEmitter(obj, unitsPerPixel);
+            var organicBody = ImplicitBodyMesher.Build(anatomy);
 
             for (int index = 0; index < anatomy.Primitives.Count; index++)
             {
                 PrimitiveDef p = anatomy.Primitives[index];
+                if (organicBody.PrimitiveIndices.Contains(index)) continue;
                 if (p.Group < 0 || p.Group >= anatomy.Groups.Count) continue;
                 obj.Append("o primitive_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine();
                 obj.Append("usemtl ").Append(p.Material.ToString()).AppendLine();
@@ -74,6 +76,11 @@ namespace PixelCreatures.Core.Export
                     emitter.Triangle(a, b, c, (p.Flags & PrimFlags.TwoSided) != 0);
                 }
             }
+
+            // Emit the fused organic skin after standalone hard details and equipment.
+            // Its single outer surface replaces overlapping body ellipsoids/cones that previously
+            // exposed internal shells and dark holes at joints.
+            emitter.AppendMesh(organicBody);
 
             // Facial features are stored separately from body primitives in CreatureAnatomy.
             // Export them explicitly so 3D previews retain eyes, pupils, highlights and nostrils.
@@ -267,6 +274,28 @@ namespace PixelCreatures.Core.Export
                     // makes generated smooth normals cancel to zero in indexed mesh consumers.
                     int reverseA = Vertex(a), reverseB = Vertex(b), reverseC = Vertex(c);
                     Face(reverseC, reverseB, reverseA);
+                }
+            }
+
+            public void AppendMesh(ImplicitBodyMesher.MeshData mesh)
+            {
+                if (mesh == null || mesh.Vertices.Count < 3 || mesh.Faces.Count == 0) return;
+                int[] globalIndices = new int[mesh.Vertices.Count];
+                for (int i = 0; i < mesh.Vertices.Count; i++) globalIndices[i] = Vertex(mesh.Vertices[i]);
+
+                foreach (MaterialSlot material in Enum.GetValues<MaterialSlot>())
+                {
+                    if (material == MaterialSlot.Count) continue;
+                    bool hasFaces = false;
+                    foreach (var face in mesh.Faces)
+                        if (face.Material == material) { hasFaces = true; break; }
+                    if (!hasFaces) continue;
+
+                    _obj.Append("o organic_body_").AppendLine(material.ToString());
+                    _obj.Append("usemtl ").AppendLine(material.ToString());
+                    foreach (var face in mesh.Faces)
+                        if (face.Material == material)
+                            Face(globalIndices[face.A], globalIndices[face.B], globalIndices[face.C]);
                 }
             }
 
