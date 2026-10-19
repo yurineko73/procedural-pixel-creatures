@@ -226,7 +226,7 @@ namespace PixelCreatures.Core.Export
                 foreach (int[] split in Tetrahedra)
                 {
                     for (int i = 0; i < 4; i++) tetra[i] = cube[split[i]];
-                    EmitTetra(tetra, points, distances, inside, outside, edgeVertices, mesh, shapes);
+                    EmitTetra(tetra, points, distances, inside, outside, edgeVertices, mesh, shapes, smoothness);
                 }
             }
 
@@ -312,7 +312,7 @@ namespace PixelCreatures.Core.Export
 
         private static void EmitTetra(int[] tetra, Vec3[] points, double[] distances,
             int[] inside, int[] outside, Dictionary<long, int> edgeVertices,
-            MeshData mesh, List<Shape> shapes)
+            MeshData mesh, List<Shape> shapes, double smoothness)
         {
             int inCount = 0, outCount = 0;
             for (int i = 0; i < 4; i++)
@@ -330,7 +330,7 @@ namespace PixelCreatures.Core.Export
                 int v1 = EdgeVertex(a, c, points, distances, edgeVertices, mesh);
                 int v2 = EdgeVertex(a, d, points, distances, edgeVertices, mesh);
                 Vec3 outward = (points[b] + points[c] + points[d]) / 3.0 - points[a];
-                AddTriangle(v0, v1, v2, outward, mesh, shapes);
+                AddTriangle(v0, v1, v2, outward, mesh, shapes, smoothness);
                 return;
             }
 
@@ -351,8 +351,8 @@ namespace PixelCreatures.Core.Export
             int p10 = EdgeVertex(i1, o0, points, distances, edgeVertices, mesh);
             int p11 = EdgeVertex(i1, o1, points, distances, edgeVertices, mesh);
             Vec3 direction = (points[o0] + points[o1] - points[i0] - points[i1]) * 0.5;
-            AddTriangle(p00, p01, p10, direction, mesh, shapes);
-            AddTriangle(p01, p11, p10, direction, mesh, shapes);
+            AddTriangle(p00, p01, p10, direction, mesh, shapes, smoothness);
+            AddTriangle(p01, p11, p10, direction, mesh, shapes, smoothness);
         }
 
         private static int EdgeVertex(int a, int b, Vec3[] points, double[] distances,
@@ -371,15 +371,30 @@ namespace PixelCreatures.Core.Export
             return index;
         }
 
-        private static void AddTriangle(int a, int b, int c, Vec3 outward, MeshData mesh, List<Shape> shapes)
+        private static void AddTriangle(int a, int b, int c, Vec3 approximateOutward,
+            MeshData mesh, List<Shape> shapes, double smoothness)
         {
             Vec3 pa = mesh.Vertices[a], pb = mesh.Vertices[b], pc = mesh.Vertices[c];
             Vec3 cross = Vec3.Cross(pb - pa, pc - pa);
             if (cross.LengthSquared < 1e-10) return;
-            if (Vec3.Dot(cross, outward) < 0) { int swap = b; b = c; c = swap; }
             Vec3 center = (pa + pb + pc) / 3.0;
+            Vec3 outward = FieldGradient(center, shapes, smoothness);
+            if (outward.LengthSquared < 1e-10) outward = approximateOutward;
+            if (Vec3.Dot(cross, outward) < 0) { int swap = b; b = c; c = swap; }
             MaterialSlot material = MaterialAt(center, shapes);
             mesh.Faces.Add(new Face(a, b, c, material));
+        }
+
+        private static Vec3 FieldGradient(Vec3 point, List<Shape> shapes, double smoothness)
+        {
+            double h = Math.Max(0.25, smoothness * 0.5);
+            Vec3 dx = new Vec3(h, 0, 0);
+            Vec3 dy = new Vec3(0, h, 0);
+            Vec3 dz = new Vec3(0, 0, h);
+            return new Vec3(
+                Field(point + dx, shapes, smoothness) - Field(point - dx, shapes, smoothness),
+                Field(point + dy, shapes, smoothness) - Field(point - dy, shapes, smoothness),
+                Field(point + dz, shapes, smoothness) - Field(point - dz, shapes, smoothness));
         }
 
         private static MaterialSlot MaterialAt(Vec3 point, List<Shape> shapes)
