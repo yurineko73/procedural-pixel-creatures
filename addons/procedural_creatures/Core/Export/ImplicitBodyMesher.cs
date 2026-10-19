@@ -342,7 +342,7 @@ namespace PixelCreatures.Core.Export
                 int v1 = EdgeVertex(a, c, points, distances, edgeVertices, mesh);
                 int v2 = EdgeVertex(a, d, points, distances, edgeVertices, mesh);
                 Vec3 outward = points[a] - (points[b] + points[c] + points[d]) / 3.0;
-                AddTriangle(v0, v1, v2, outward, mesh, shapes);
+                AddTriangle(v0, v1, v2, outward, mesh, shapes, smoothness);
                 return;
             }
 
