@@ -430,13 +430,28 @@ namespace PixelCreatures.Examples
             SyncEquipmentSeeds();
             int count = slot switch
             {
-                EquipmentSlot.Outfit => ++_outfitRerolls,
-                EquipmentSlot.Weapon => ++_weaponRerolls,
-                EquipmentSlot.Headgear => ++_headgearRerolls,
-                _ => ++_accessoryRerolls,
+                EquipmentSlot.Outfit => _outfitRerolls,
+                EquipmentSlot.Weapon => _weaponRerolls,
+                EquipmentSlot.Headgear => _headgearRerolls,
+                _ => _accessoryRerolls,
             };
-            ulong rerolled = StableHash.Derive(_masterGearSeed,
-                "preview.reroll." + slot.ToString().ToLowerInvariant(), count);
+            bool requireNativeItem = string.Equals(SelectedFamilyId, "biped", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(SelectedStyleId, "fantasy", StringComparison.OrdinalIgnoreCase);
+            ulong rerolled = _equipmentSeeds.For(slot);
+            for (int attempt = 0; attempt < 64; attempt++)
+            {
+                count++;
+                rerolled = StableHash.Derive(_masterGearSeed,
+                    "preview.reroll." + slot.ToString().ToLowerInvariant(), count);
+                if (!requireNativeItem || NativeSlotHasGear(slot, rerolled)) break;
+            }
+            switch (slot)
+            {
+                case EquipmentSlot.Outfit: _outfitRerolls = count; break;
+                case EquipmentSlot.Weapon: _weaponRerolls = count; break;
+                case EquipmentSlot.Headgear: _headgearRerolls = count; break;
+                default: _accessoryRerolls = count; break;
+            }
             _equipmentSeeds = slot switch
             {
                 EquipmentSlot.Outfit => new EquipmentSeedSet(rerolled, _equipmentSeeds.WeaponSeed, _equipmentSeeds.HeadgearSeed, _equipmentSeeds.AccessorySeed),
@@ -446,6 +461,18 @@ namespace PixelCreatures.Examples
             };
             UpdateEquipmentSeedSummary();
             GeneratePreview();
+        }
+
+        private static bool NativeSlotHasGear(EquipmentSlot slot, ulong seed)
+        {
+            CreatureGenome sample = CreatureRuntime.Sample("biped", seed);
+            return slot switch
+            {
+                EquipmentSlot.Outfit => sample.GetChoice("gear.outfit") != "none",
+                EquipmentSlot.Weapon => sample.GetChoice("gear.weapon") != "none",
+                EquipmentSlot.Headgear => sample.GetChoice("gear.helmet") != "none",
+                _ => sample.GetBool("gear.shield") || sample.GetBool("gear.pauldrons"),
+            };
         }
 
         private void UpdateEquipmentSeedSummary()
