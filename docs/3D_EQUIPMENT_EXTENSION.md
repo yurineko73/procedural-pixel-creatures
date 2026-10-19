@@ -25,6 +25,7 @@ dotnet run --project tools/core_harness/CoreHarness.csproj -- obj out/modern bip
 dotnet run --project tools/core_harness/CoreHarness.csproj -- obj out/original quadruped 12345 fantasy
 dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test export.obj_static_all_families 1
 dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test export.obj_two_sided_triangle_normals 1
+dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test export.obj_unifies_organic_primitives 1
 dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test equipment.style_overlay_deterministic 1
 dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test equipment.slot_seeds_are_independent 1
 dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test equipment.native_gear_slot_seeds_are_independent 1
