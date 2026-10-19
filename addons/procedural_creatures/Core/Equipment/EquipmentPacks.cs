@@ -234,9 +234,13 @@ namespace PixelCreatures.Core.Equipment
             if (c.RandomFor("vest", EquipmentSlot.Outfit).Chance(0.7))
                 c.Ellipsoid("vest", chest, shell.LocalA + new Vec3(0, -shell.Radii.Y * 0.5, 0),
                     new Vec3(shell.Radii.X * 0.75, shell.Radii.Y * 0.5, shell.Radii.Z * 0.92), MaterialSlot.Cloth);
+            bool backpackAdded = false;
             if (c.RandomFor("backpack", EquipmentSlot.Accessory).Chance(0.7))
+            {
                 c.Ellipsoid("backpack", chest, shell.LocalA + new Vec3(0, shell.Radii.Y * 1.12, 0),
                     new Vec3(shell.Radii.X * 0.65, shell.Radii.Y * 0.45, shell.Radii.Z * 0.82), MaterialSlot.Cloth);
+                backpackAdded = true;
+            }
             var headgear = c.RandomFor("headgear", EquipmentSlot.Headgear);
             var skull = c.FindShell(head);
             if (skull != null)
@@ -265,7 +269,7 @@ namespace PixelCreatures.Core.Equipment
                 }
             }
             var accessory = c.RandomFor("radio", EquipmentSlot.Accessory);
-            if (accessory.Chance(0.55))
+            if (accessory.Chance(0.55) || !backpackAdded)
                 c.Ellipsoid("radio", chest, shell.LocalA + new Vec3(-shell.Radii.X * 0.36, -shell.Radii.Y * 0.25, shell.Radii.Z * 0.86),
                     new Vec3(shell.Radii.X * 0.18, shell.Radii.Y * 0.22, shell.Radii.Z * 0.20), MaterialSlot.Metal);
             // Fictional sidearm game prop (visual only, no functioning mechanisms).
