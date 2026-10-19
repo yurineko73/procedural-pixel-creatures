@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using PixelCreatures.Core;
 using PixelCreatures.Core.Anatomy;
+using PixelCreatures.Core.Equipment;
+using PixelCreatures.Core.Export;
 using PixelCreatures.Core.Genetics;
 using PixelCreatures.Core.Motion;
 using PixelCreatures.Core.Rendering;
@@ -37,9 +39,56 @@ namespace PixelCreatures.Tests
             r.Run("motion.states_and_directions_stay_in_canvas", ctx => CanvasSafety(ctx, registry, factory));
             r.Run("motion.turning_in_place_reorients_body", ctx => TurnInPlace(ctx, registry, factory));
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
+            r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
+            r.Run("equipment.style_overlay_deterministic", ctx => EquipmentStyleSmoke(ctx, registry));
         }
 
         // ------------------------------------------------------------------ math & random
+
+        // ------------------------------------------------------------------ optional 3D export & style packs
+
+        private static void ObjExportSmoke(TestContext ctx, CreatureRegistry reg)
+        {
+            foreach (var family in reg.Families)
+            {
+                var g = GenomeFactory.Sample(family, 4271);
+                var a = family.BuildAnatomy(g, reg);
+                var first = ObjMeshExporter.Export(a, 8, 4);
+                var second = ObjMeshExporter.Export(a, 8, 4);
+                ctx.True(first.ObjText == second.ObjText, family.Id + ": OBJ changed for identical input");
+                ctx.True(first.Vertices > 0 && first.Triangles > 0, family.Id + ": no OBJ geometry");
+                ctx.True(first.ObjText.Contains("mtllib creature.mtl", StringComparison.Ordinal), family.Id + ": missing MTL");
+                ctx.True(first.MtlText.Contains("newmtl Primary", StringComparison.Ordinal), family.Id + ": missing material");
+                ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
+                    !first.ObjText.Contains("Infinity", StringComparison.Ordinal), family.Id + ": nonfinite OBJ values");
+            }
+        }
+
+        private static void EquipmentStyleSmoke(TestContext ctx, CreatureRegistry reg)
+        {
+            var family = reg.Families.First(f => f.Id == "biped");
+            // Disable original fantasy gear so overlays don't collide in this smoke test.
+            var g = GenomeFactory.Sample(family, 9701)
+                .With("gear.weapon", 0)
+                .With("gear.outfit", 0)
+                .With("gear.helmet", 0)
+                .With("gear.shield", 0)
+                .With("gear.pauldrons", 0);
+            var original = family.BuildAnatomy(g, reg);
+            ulong originalHash = AnatomyHash(original);
+            foreach (string style in new[] { "modern", "scifi", "wasteland" })
+            {
+                var first = EquipmentGenerator.Apply(original, style, 123456UL);
+                var second = EquipmentGenerator.Apply(original, style, 123456UL);
+                ctx.True(first.Primitives.Count > original.Primitives.Count, style + ": no added equipment");
+                ctx.True(first.Primitives.Count == second.Primitives.Count, style + ": unstable shape count");
+                ctx.True(AnatomyHash(first) == AnatomyHash(second), style + ": nondeterministic equipment geometry");
+                ctx.True(ObjMeshExporter.Export(first, 8, 4).Triangles > 0, style + ": no 3D mesh");
+                ctx.True(AnatomyHash(original) == originalHash, style + ": source anatomy mutated");
+            }
+            ctx.True(object.ReferenceEquals(original, EquipmentGenerator.Apply(original, "fantasy", 123)),
+                "fantasy pass-through should preserve original anatomy");
+        }
 
         private static void DeterministicMath(TestContext ctx)
         {
