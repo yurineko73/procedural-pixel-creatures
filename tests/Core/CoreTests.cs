@@ -85,8 +85,12 @@ namespace PixelCreatures.Tests
             builder.Ellipsoid(skin, root, new Vec3(1, 0, 0), new Vec3(3, 4, 3), MaterialSlot.Secondary);
             int gear = builder.Group("gear.helmet", 0.2);
             builder.Ellipsoid(gear, root, new Vec3(0, 5, 0), new Vec3(1, 1, 1), MaterialSlot.Cloth);
+            int tunic = builder.Group("gear.tunic", 0.4);
+            builder.Ellipsoid(tunic, root, new Vec3(0, 0, 0), new Vec3(4, 5, 4), MaterialSlot.Cloth);
+            builder.Ellipsoid(tunic, root, new Vec3(0, 1, 0), new Vec3(4.5, 4.5, 4.5), MaterialSlot.Cloth);
 
             var anatomy = builder.Build(1);
+            var fusedSkin = ImplicitBodyMesher.Build(anatomy);
             var result = ObjMeshExporter.Export(anatomy, 8, 4);
             ctx.True(result.ObjText.Contains("o organic_body_Primary", StringComparison.Ordinal),
                 "organic primary surfaces should be emitted as one fused outer skin");
@@ -96,7 +100,14 @@ namespace PixelCreatures.Tests
                 !result.ObjText.Contains("o primitive_1", StringComparison.Ordinal),
                 "unified organic primitives must not also be exported as overlapping closed shells");
             ctx.True(result.ObjText.Contains("o primitive_2", StringComparison.Ordinal),
-                "gear primitives must remain separate from the organic skin union");
+                "hard/unsupported gear groups must remain separate from the organic skin union");
+            ctx.True(result.ObjText.Contains("o garment_gear_tunic_Cloth", StringComparison.Ordinal),
+                "soft tunic ellipsoids should be fused into one fitted garment surface");
+            ctx.True(!result.ObjText.Contains("o primitive_3", StringComparison.Ordinal) &&
+                !result.ObjText.Contains("o primitive_4", StringComparison.Ordinal),
+                "fused garment primitives must not also be exported as overlapping closed shells");
+            ctx.True(fusedSkin.BoundaryEdgeCount == 0 && fusedSkin.NonManifoldEdgeCount == 0,
+                "the fused organic skin must be a closed two-manifold surface");
             ctx.True(result.Triangles > 0, "organic union must generate a nonempty surface");
         }
 
