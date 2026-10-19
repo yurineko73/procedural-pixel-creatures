@@ -90,12 +90,12 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 - Fantasy native gear is sampled from independent slot seeds (gear.outfit, gear.weapon, gear.helmet, gear.shield, gear.pauldrons). Its legacy shared gear.size remains controlled by the master gear seed. Cloth/metal colour genes are also tied to the master equipment seed.
 - OBJ now exports the separately stored CreatureAnatomy.Features: eye sockets, sclera, iris/pupil, highlights, nostrils and spots, each with named material groups.
 - The Godot preview now maps the palette's six shades through a stepped toon shader rather than using only each slot's base colour. Feature material names map to dark sockets/pupils, sclera, iris, highlights and glow.
-- Tests were added for facial-feature OBJ output and for verifying that changing the weapon seed does not change the modern jacket geometry while it does change the weapon shape.
+- Tests were added for facial-feature OBJ output, overlay slot isolation (weapon reroll leaves jacket geometry stable), and native Fantasy gear slot isolation (weapon reroll leaves outfit/headgear/accessory genes stable).
 
 ### Required revalidation before merge
 
 1. Run dotnet build for the Godot C# project and dotnet build tools/core_harness/CoreHarness.csproj.
-2. Run the full core harness, including export.obj_static_all_families, equipment.style_overlay_deterministic and equipment.slot_seeds_are_independent.
+2. Run the full core harness, including export.obj_static_all_families, equipment.style_overlay_deterministic, equipment.slot_seeds_are_independent and equipment.native_gear_slot_seeds_are_independent.
 3. Run Godot editor import and both existing headless example checks / quick suite.
 4. In the preview, confirm eyes/pupils are visible from multiple angles, the toon ramp remains readable, body seed leaves gear shapes stable, and each slot button leaves other categories unchanged.
 5. Export OBJ + MTL and inspect in Blender. If tests fail, fix before updating status to validated.
