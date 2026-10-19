@@ -39,3 +39,8 @@ This is a geometry proof of concept, not a game-ready rig:
 - the OBJ/MTL export uses placeholder material definitions even though the live preview uses the sampled creature palette.
 
 If the preview does not open, first run the project's normal C# import/build and headless checks. The preview and its equipment styles have not been marked as validated until those checks and a visual inspection in Godot/Blender pass.
+
+
+## Rendering repair note (2026-10-19)
+
+The preview shader's `light()` processor must not use an early `return`; lighting is now guarded with an `if` block. Two-sided triangle backfaces are exported with separate vertices so generated normals do not cancel, and the preview uses back-face culling to avoid z-fighting between coincident front/back faces. These fixes are committed but still require a Godot 4.7.1 rebuild and visual verification.
