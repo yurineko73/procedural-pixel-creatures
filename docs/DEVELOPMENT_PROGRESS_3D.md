@@ -105,3 +105,18 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 - Added a CoreHarness regression assertion for a two-sided triangle object containing six independent vertices and two faces.
 
 **Revalidation:** rebuild the Godot C# project, reopen `CreaturePreview3D.tscn`, and confirm there is no shader compilation error. Check that the body and equipment show palette colours, two-sided triangle pieces no longer flicker or form white shards, and the eye materials remain visible. Primitive intersections are still an architectural limitation of this static-mesh prototype; if obvious gaps remain after the shader/normal fix, the next task is to improve the actual surface construction rather than only adjusting lighting.
+
+
+## Follow-up after the user's second visual report (2026-10-19)
+
+The new screenshot showed that the shader compiles and colors are visible, but the character still reads as disconnected intersecting shells, with very dark interior-looking patches and exaggerated hue bands.
+
+Additional source changes committed (still **not visually verified in Godot**):
+- The toon shader no longer disables ambient lighting. Its light function also returns a deep palette contribution for back-facing normals rather than zero diffuse light, reducing pure-black surfaces; the stage ambient/fill levels were reduced to preserve form.
+- 3D lighting now derives most shade levels from each material's base hue, with only a small blend from the 2D palette's hue-shifted shadow/highlight colors. Fixed-shade facial materials keep their authored shade.
+- Added `ImplicitBodyMesher`, an engine-independent signed-distance union for organic ellipsoids and tapered segments using Primary/Secondary materials. It emits one continuous outer skin with material regions, preventing internal closed shells from showing through at overlapping torso/limb joints.
+- Gear groups, interior mouth parts, hard/faceted details, triangles, and non-skin material slots remain separate. If the implicit surface is empty, the exporter falls back to the original primitives.
+- Frustum cap rings now use separate vertex indices from the curved side rings so generated normals do not average flat cap normals with curved side normals.
+- Added a CoreHarness regression for fused organic skin while ensuring gear remains separate.
+
+**Next acceptance gate:** rebuild the Godot C# project and run `examples/preview_3d/CreaturePreview3D.tscn`; verify no shader errors, inspect biped plus at least one faceted/golem and non-biped family, and run the new `export.obj_unifies_organic_primitives` and existing export tests. This is a source-level fix only until those checks are run. If the skin is fused but still too lumpy, tune voxel resolution and smooth-union radius based on screenshots rather than reverting to overlapping closed ellipsoids.
