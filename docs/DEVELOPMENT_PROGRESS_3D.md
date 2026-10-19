@@ -51,7 +51,7 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 ## M3 preview scene added (2026-10-19)
 
 - `examples/preview_3d/CreaturePreview3D.tscn` is a separate run-current-scene entry point; the existing `workshop/Main.tscn` remains the project start scene.
-- `examples/preview_3d/CreaturePreview3D.cs` creates the 3D stage, lights, ground grid, pedestal, orbit camera and control panel at runtime.
+- `examples/preview_3d/CreaturePreview3D.cs` owns seed/style/equipment UI and regeneration flow.\n- `examples/preview_3d/PreviewStageBuilder.cs` owns environment, lighting, ground grid, pedestal and orbit camera construction.\n- `examples/preview_3d/ObjPreviewMeshBuilder.cs` parses the OBJ payload into indexed Godot surfaces and applies the sampled palette by material slot.
 - UI includes family selector, text/numeric seed + random seed, regenerate, equipment toggle, Fantasy/Modern/Sci-Fi/Wasteland style selector, reset view and OBJ/MTL export.
 - Modern/Sci-Fi/Wasteland use the separate biped equipment packs; other families fall back to Fantasy.
 - Live meshes use the sampled palette by material slot. OBJ/MTL exports are saved to `user://exports/3d-preview/`.
