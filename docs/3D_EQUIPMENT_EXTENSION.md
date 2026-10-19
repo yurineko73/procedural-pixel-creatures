@@ -102,3 +102,12 @@ The custom `light()` shader processor uses a guarded block rather than `return;`
 The static exporter now routes eligible ellipsoid and tapered-segment primitives using Primary/Secondary skin materials through `ImplicitBodyMesher`. The mesher evaluates an approximate signed-distance field, applies a small smooth minimum around overlaps, and emits a shared outer surface with material regions. Gear-prefixed groups, interior groups, hard/faceted primitives, triangles, and other material slots remain independent. If meshing produces no faces, the exporter falls back to the original primitive geometry.
 
 The preview toon shader shades primarily by scaling each material's base hue rather than applying the full 2D palette hue shift to every light band; fixed-shade facial details retain their intended color. Ambient lighting is enabled to avoid black unlit surfaces. These changes have source regression coverage, but still need a Godot 4.7.1 rebuild and visual validation.
+
+
+## Opaque preview surface and garment fusion follow-up (2026-10-19)
+
+The static 3D exporter now fuses eligible organic skin primitives into a continuous signed-distance surface and fuses selected soft garment groups separately. Clothing groups include tunic, undercoat, breastplate, robe, skirt, and loincloth flaps; the group boundaries preserve equipment layering, and hard/faceted/thin details remain standalone. Garment meshing uses a smaller smooth-union radius and finer voxel step than body skin.
+
+To reduce surface holes, the SDF field no longer switches between hard-min and smooth-min at a distance threshold; extracted triangles are oriented against the field gradient, and intersections landing exactly on sampled grid points share a single cached vertex. MeshData reports boundary-edge and non-manifold-edge counts. The Godot preview shader explicitly requests `depth_draw_opaque` and `cull_disabled`, so reversed triangles are not simply culled and the surfaces remain depth-writing opaque. Biped cover offsets were increased slightly to keep cloth/armour outside the fused body.
+
+Regression coverage now checks a closed body manifold and verifies garment primitive shells are replaced by one garment surface. These are source-level checks only until the CoreHarness test and Godot 4.7.1 preview are actually run.
