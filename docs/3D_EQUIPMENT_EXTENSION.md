@@ -94,3 +94,10 @@ Weapons are **fictional videogame visual props**, not real-world mechanical desi
 ## Godot preview shading / triangle normals
 
 The custom `light()` shader processor uses a guarded block rather than `return;` (Godot rejects early returns in this processor). Two-sided triangle exports duplicate the reverse face with a separate vertex triplet; sharing indices for opposite faces makes generated normals cancel. The preview keeps back-face culling enabled to avoid depth fighting between coincident front and reverse faces. This source fix is committed; rebuild and visual inspection in Godot 4.7.1 are still required.
+
+
+## Static 3D preview: organic surface union
+
+The static exporter now routes eligible ellipsoid and tapered-segment primitives using Primary/Secondary skin materials through `ImplicitBodyMesher`. The mesher evaluates an approximate signed-distance field, applies a small smooth minimum around overlaps, and emits a shared outer surface with material regions. Gear-prefixed groups, interior groups, hard/faceted primitives, triangles, and other material slots remain independent. If meshing produces no faces, the exporter falls back to the original primitive geometry.
+
+The preview toon shader shades primarily by scaling each material's base hue rather than applying the full 2D palette hue shift to every light band; fixed-shade facial details retain their intended color. Ambient lighting is enabled to avoid black unlit surfaces. These changes have source regression coverage, but still need a Godot 4.7.1 rebuild and visual validation.
