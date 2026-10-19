@@ -105,6 +105,9 @@ namespace PixelCreatures.Core.Equipment
             _traits.Add("equipment.style:" + style);
         }
 
+        /// <summary>Compatibility overload: unclassified plugin parts use the Outfit stream.</summary>
+        public Rng RandomFor(string part) => RandomFor(part, EquipmentSlot.Outfit);
+
         /// <summary>Named per-component stream derived from an independently seeded equipment slot.</summary>
         public Rng RandomFor(string part, EquipmentSlot slot) =>
             Rng.Derive(_seeds.For(slot), "equipment." + _style + "." + slot.ToString().ToLowerInvariant() + "." + part);
