@@ -41,6 +41,7 @@ namespace PixelCreatures.Tests
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("equipment.style_overlay_deterministic", ctx => EquipmentStyleSmoke(ctx, registry));
+            r.Run("equipment.slot_seeds_are_independent", ctx => EquipmentSlotIndependence(ctx, registry));
         }
 
         // ------------------------------------------------------------------ math & random
@@ -59,6 +60,13 @@ namespace PixelCreatures.Tests
                 ctx.True(first.Vertices > 0 && first.Triangles > 0, family.Id + ": no OBJ geometry");
                 ctx.True(first.ObjText.Contains("mtllib creature.mtl", StringComparison.Ordinal), family.Id + ": missing MTL");
                 ctx.True(first.MtlText.Contains("newmtl Primary", StringComparison.Ordinal), family.Id + ": missing material");
+                if (family.Id == "biped")
+                {
+                    ctx.True(first.ObjText.Contains("usemtl FeatureSocket", StringComparison.Ordinal), "biped: missing 3D eye sockets");
+                    ctx.True(first.ObjText.Contains("usemtl FeaturePupil", StringComparison.Ordinal), "biped: missing 3D pupils");
+                    ctx.True(first.ObjText.Contains("usemtl FeatureHighlight", StringComparison.Ordinal), "biped: missing eye highlights");
+                    ctx.True(first.MtlText.Contains("newmtl FeatureSclera", StringComparison.Ordinal), "biped: missing sclera material");
+                }
                 ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                     !first.ObjText.Contains("Infinity", StringComparison.Ordinal), family.Id + ": nonfinite OBJ values");
             }
