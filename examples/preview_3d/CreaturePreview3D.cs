@@ -5,14 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using Godot;
 using PixelCreatures.Core;
 using PixelCreatures.Core.Anatomy;
 using PixelCreatures.Core.Equipment;
 using PixelCreatures.Core.Export;
 using PixelCreatures.Core.Genetics;
-using PixelCreatures.Core.Palettes;
 using PixelCreatures.Runtime;
 
 namespace PixelCreatures.Examples
@@ -50,111 +48,12 @@ namespace PixelCreatures.Examples
 
         public override void _Ready()
         {
-            BuildWorld();
+            var stage = PreviewStageBuilder.Build(this);
+            _modelRoot = stage.ModelRoot;
+            _cameraRig = stage.CameraRig;
+            _camera = stage.Camera;
             BuildUi();
             GeneratePreview();
-        }
-
-        private void BuildWorld()
-        {
-            var world = new WorldEnvironment();
-            var environment = new Godot.Environment
-            {
-                BackgroundMode = Godot.Environment.BGMode.Color,
-                BackgroundColor = new Color(0.055f, 0.067f, 0.09f),
-                AmbientLightSource = Godot.Environment.AmbientSource.Color,
-                AmbientLightColor = new Color(0.57f, 0.62f, 0.72f),
-                AmbientLightEnergy = 0.72f,
-                TonemapMode = Godot.Environment.ToneMapper.Filmic,
-                GlowEnabled = true,
-                GlowIntensity = 0.35f,
-            };
-            world.Environment = environment;
-            AddChild(world);
-
-            var key = new DirectionalLight3D
-            {
-                RotationDegrees = new Vector3(-43, -32, 0),
-                LightColor = new Color(1.0f, 0.91f, 0.78f),
-                LightEnergy = 1.25f,
-                ShadowEnabled = true,
-                ShadowOpacity = 0.38f,
-            };
-            AddChild(key);
-
-            var fill = new DirectionalLight3D
-            {
-                RotationDegrees = new Vector3(-20, 145, 0),
-                LightColor = new Color(0.46f, 0.68f, 1.0f),
-                LightEnergy = 0.62f,
-                ShadowEnabled = false,
-            };
-            AddChild(fill);
-
-            var floorMaterial = new StandardMaterial3D
-            {
-                AlbedoColor = new Color(0.075f, 0.09f, 0.12f),
-                Roughness = 0.92f,
-            };
-            var floor = new MeshInstance3D
-            {
-                Name = "PreviewFloor",
-                Mesh = new PlaneMesh { Size = new Vector2(80, 80) },
-                MaterialOverride = floorMaterial,
-                Position = new Vector3(0, -0.19f, 0),
-            };
-            AddChild(floor);
-
-            var gridMaterial = new StandardMaterial3D
-            {
-                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                AlbedoColor = new Color(0.18f, 0.22f, 0.29f, 0.58f),
-                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                NoDepthTest = false,
-            };
-            var gridMesh = new ImmediateMesh();
-            gridMesh.SurfaceBegin(Mesh.PrimitiveType.Lines, gridMaterial);
-            for (int i = -12; i <= 12; i++)
-            {
-                float p = i * 0.75f;
-                gridMesh.SurfaceAddVertex(new Vector3(p, -0.185f, -9));
-                gridMesh.SurfaceAddVertex(new Vector3(p, -0.185f, 9));
-                gridMesh.SurfaceAddVertex(new Vector3(-9, -0.185f, p));
-                gridMesh.SurfaceAddVertex(new Vector3(9, -0.185f, p));
-            }
-            gridMesh.SurfaceEnd();
-            AddChild(new MeshInstance3D { Name = "PreviewGrid", Mesh = gridMesh });
-
-            var pedestal = new MeshInstance3D
-            {
-                Name = "DisplayPedestal",
-                Mesh = new CylinderMesh { TopRadius = 1.05f, BottomRadius = 1.18f, Height = 0.16f, RadialSegments = 48 },
-                Position = new Vector3(0, -0.08f, 0),
-                MaterialOverride = new StandardMaterial3D
-                {
-                    AlbedoColor = new Color(0.15f, 0.18f, 0.23f),
-                    Metallic = 0.38f,
-                    Roughness = 0.42f,
-                },
-            };
-            AddChild(pedestal);
-
-            _modelRoot = new Node3D { Name = "GeneratedCreature" };
-            AddChild(_modelRoot);
-
-            _cameraRig = new Node3D { Name = "OrbitRig", Position = new Vector3(0, 1.0f, 0) };
-            AddChild(_cameraRig);
-            _camera = new Camera3D
-            {
-                Name = "PreviewCamera",
-                Position = new Vector3(0, 0, _cameraDistance),
-                Current = true,
-                Fov = 42,
-                Near = 0.03f,
-                Far = 100,
-            };
-            _cameraRig.AddChild(_camera);
-            UpdateCameraRig();
         }
 
         private void BuildUi()
@@ -471,7 +370,7 @@ namespace PixelCreatures.Examples
 
                 ObjMeshResult result = ObjMeshExporter.Export(
                     anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
-                ReplaceModelMeshes(result.ObjText, model.Palette);
+                ObjPreviewMeshBuilder.ReplaceModelMeshes(_modelRoot, result.ObjText, model.Palette);
 
                 _lastObj = result.ObjText;
                 _lastMtl = result.MtlText;
@@ -490,111 +389,6 @@ namespace PixelCreatures.Examples
                 _exportButton.Disabled = true;
                 GD.PushError("[CreaturePreview3D] " + ex);
             }
-        }
-
-        private void ReplaceModelMeshes(string objText, CreaturePalette palette)
-        {
-            foreach (Node child in _modelRoot.GetChildren())
-            {
-                _modelRoot.RemoveChild(child);
-                child.QueueFree();
-            }
-
-            var vertices = new List<Vector3>();
-            var facesByMaterial = new Dictionary<MaterialSlot, List<int>>();
-            MaterialSlot currentMaterial = MaterialSlot.Primary;
-
-            foreach (string rawLine in objText.Split('\n'))
-            {
-                string line = rawLine.Trim();
-                if (line.Length == 0 || line[0] == '#') continue;
-                if (line.StartsWith("v ", StringComparison.Ordinal))
-                {
-                    string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (fields.Length < 4) continue;
-                    vertices.Add(new Vector3(
-                        float.Parse(fields[1], CultureInfo.InvariantCulture),
-                        float.Parse(fields[2], CultureInfo.InvariantCulture),
-                        float.Parse(fields[3], CultureInfo.InvariantCulture)));
-                }
-                else if (line.StartsWith("usemtl ", StringComparison.Ordinal))
-                {
-                    string name = line.Substring(7).Trim();
-                    if (Enum.TryParse(name, out MaterialSlot parsed)) currentMaterial = parsed;
-                }
-                else if (line.StartsWith("f ", StringComparison.Ordinal))
-                {
-                    string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (fields.Length < 4) continue;
-                    if (!facesByMaterial.TryGetValue(currentMaterial, out var indices))
-                    {
-                        indices = new List<int>();
-                        facesByMaterial[currentMaterial] = indices;
-                    }
-                    for (int i = 1; i < fields.Length; i++)
-                    {
-                        string indexText = fields[i].Split('/')[0];
-                        int index = int.Parse(indexText, CultureInfo.InvariantCulture);
-                        indices.Add(index > 0 ? index - 1 : vertices.Count + index);
-                    }
-                }
-            }
-
-            foreach (var entry in facesByMaterial.OrderBy(pair => (int)pair.Key))
-            {
-                var remap = new Dictionary<int, int>();
-                var localVertices = new List<Vector3>();
-                var localIndices = new List<int>();
-                foreach (int sourceIndex in entry.Value)
-                {
-                    if (sourceIndex < 0 || sourceIndex >= vertices.Count)
-                        throw new InvalidOperationException("OBJ contains an out-of-range vertex index.");
-                    if (!remap.TryGetValue(sourceIndex, out int localIndex))
-                    {
-                        localIndex = localVertices.Count;
-                        remap.Add(sourceIndex, localIndex);
-                        localVertices.Add(vertices[sourceIndex]);
-                    }
-                    localIndices.Add(localIndex);
-                }
-
-                if (localVertices.Count < 3 || localIndices.Count < 3) continue;
-                var surface = new SurfaceTool();
-                surface.Begin(Mesh.PrimitiveType.Triangles);
-                foreach (Vector3 vertex in localVertices) surface.AddVertex(vertex);
-                foreach (int index in localIndices) surface.AddIndex(index);
-                surface.GenerateNormals();
-                ArrayMesh mesh = surface.Commit();
-                if (mesh == null || mesh.GetSurfaceCount() == 0) continue;
-
-                var instance = new MeshInstance3D
-                {
-                    Name = "Material_" + entry.Key,
-                    Mesh = mesh,
-                    MaterialOverride = CreateMaterial(entry.Key, palette),
-                };
-                _modelRoot.AddChild(instance);
-            }
-        }
-
-        private static StandardMaterial3D CreateMaterial(MaterialSlot slot, CreaturePalette palette)
-        {
-            Rgba rgba = palette.Color(slot, Shade.Base);
-            var color = new Color(rgba.R / 255f, rgba.G / 255f, rgba.B / 255f);
-            var material = new StandardMaterial3D
-            {
-                AlbedoColor = color,
-                Roughness = slot == MaterialSlot.Metal ? 0.36f : 0.76f,
-                Metallic = slot == MaterialSlot.Metal ? 0.72f : 0.02f,
-                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            };
-            if (slot == MaterialSlot.Glow)
-            {
-                material.EmissionEnabled = true;
-                material.Emission = color;
-                material.EmissionEnergyMultiplier = 1.7f;
-            }
-            return material;
         }
 
         private void ExportCurrentModel()
