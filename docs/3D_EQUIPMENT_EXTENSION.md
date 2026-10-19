@@ -4,6 +4,11 @@
 
 ## What is implemented
 
+- `examples/preview_3d/CreaturePreview3D.tscn`: standalone Godot 3D preview scene; does not replace `workshop/Main.tscn`.
+- `examples/preview_3d/CreaturePreview3D.cs`: seed, family, equipment toggle, style selection and export controller.
+- `examples/preview_3d/PreviewStageBuilder.cs`: reusable lighting / ground / pedestal / orbit-camera stage.
+- `examples/preview_3d/ObjPreviewMeshBuilder.cs`: OBJ-to-Godot indexed surfaces and palette material assignment.
+
 - `Core/Export/ObjMeshExporter.cs`: engine-independent **rest-pose OBJ + MTL** output from `CreatureAnatomy` three-dimensional primitive definitions (ellipsoids, round cones, triangles), with deterministic vertex order, material-slot grouping and unit scaling.
 - `Core/Equipment/EquipmentPacks.cs`: a separate registry and deterministic `EquipmentGenerator.Apply` overlay. Bundled styles: `modern` (jacket, optional vest/backpack/cap, fictional sidearm prop), `scifi` (breastplate, light core, shoulders, helmet, fictional energy blaster prop), and `wasteland` (coat, randomized scrap plates, tool prop).
 - `tools/core_harness` command `obj`: export an existing creature, optionally with additional geometry from a style pack.
@@ -68,7 +73,7 @@ Register more styles by implementing `IEquipmentStylePack` and calling `Equipmen
 
 ## Next work
 
-- Add Godot 3D preview scene and deterministic seed/style controls.
+- Validate the standalone Godot preview scene (`examples/preview_3d/CreaturePreview3D.tscn`) with seed/family/style/equipment controls, orbit camera and OBJ export; fix any import/build/runtime issues before calling M3 complete.
 - Convert intersecting primitives into continuous game-ready meshes (SDF extraction / remeshing).
 - Generate proper fitted clothing mesh topology, UVs, normals, material mapping, runtime collision and accessory sockets.
 - Add Skeleton3D / skin weighting / glTF & GLB export / motion baking; verify rest pose and animated poses.
