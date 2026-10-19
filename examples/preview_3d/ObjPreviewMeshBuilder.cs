@@ -59,10 +59,30 @@ namespace PixelCreatures.Examples
                 }
             }
 
+            // Calculate normals from the complete OBJ before splitting by material. Otherwise
+            // each material surface gets independent normals at shared skin boundaries, producing
+            // harsh seams that look like cuts through the body.
+            var sourceNormals = new Vector3[vertices.Count];
+            foreach (var faceIndices in facesByMaterial.Values)
+            {
+                for (int i = 0; i + 2 < faceIndices.Count; i += 3)
+                {
+                    int a = faceIndices[i], b = faceIndices[i + 1], c = faceIndices[i + 2];
+                    if (a < 0 || b < 0 || c < 0 || a >= vertices.Count || b >= vertices.Count || c >= vertices.Count)
+                        throw new InvalidOperationException("OBJ contains an out-of-range vertex index.");
+                    Vector3 normal = (vertices[b] - vertices[a]).Cross(vertices[c] - vertices[a]);
+                    if (normal.LengthSquared() < 1e-10f) continue;
+                    sourceNormals[a] += normal;
+                    sourceNormals[b] += normal;
+                    sourceNormals[c] += normal;
+                }
+            }
+
             foreach (var entry in facesByMaterial.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
                 var remap = new Dictionary<int, int>();
                 var localVertices = new List<Vector3>();
+                var localSourceIndices = new List<int>();
                 var localIndices = new List<int>();
                 foreach (int sourceIndex in entry.Value)
                 {
@@ -73,6 +93,7 @@ namespace PixelCreatures.Examples
                         localIndex = localVertices.Count;
                         remap.Add(sourceIndex, localIndex);
                         localVertices.Add(vertices[sourceIndex]);
+                        localSourceIndices.Add(sourceIndex);
                     }
                     localIndices.Add(localIndex);
                 }
@@ -80,9 +101,13 @@ namespace PixelCreatures.Examples
                 if (localVertices.Count < 3 || localIndices.Count < 3) continue;
                 var surface = new SurfaceTool();
                 surface.Begin(Mesh.PrimitiveType.Triangles);
-                foreach (Vector3 vertex in localVertices) surface.AddVertex(vertex);
+                for (int i = 0; i < localVertices.Count; i++)
+                {
+                    Vector3 normal = sourceNormals[localSourceIndices[i]];
+                    surface.SetNormal(normal.LengthSquared() > 1e-10f ? normal.Normalized() : Vector3.Up);
+                    surface.AddVertex(localVertices[i]);
+                }
                 foreach (int index in localIndices) surface.AddIndex(index);
-                surface.GenerateNormals();
                 ArrayMesh mesh = surface.Commit();
                 if (mesh == null || mesh.GetSurfaceCount() == 0) continue;
 
