@@ -98,6 +98,33 @@ namespace PixelCreatures.Tests
                 "fantasy pass-through should preserve original anatomy");
         }
 
+        private static void EquipmentSlotIndependence(TestContext ctx, CreatureRegistry reg)
+        {
+            var family = reg.Families.First(f => f.Id == "biped");
+            var genome = GenomeFactory.Sample(family, 7654321)
+                .With("gear.weapon", 0).With("gear.outfit", 0).With("gear.helmet", 0)
+                .With("gear.shield", 0).With("gear.pauldrons", 0);
+            var original = family.BuildAnatomy(genome, reg);
+            var seeds = EquipmentSeedSet.FromMaster(123456UL);
+            var baseline = EquipmentGenerator.Apply(original, "modern", seeds);
+            var weaponOnly = new EquipmentSeedSet(seeds.OutfitSeed,
+                StableHash.Derive(seeds.WeaponSeed, "reroll.weapon"), seeds.HeadgearSeed, seeds.AccessorySeed);
+            var rerolledWeapon = EquipmentGenerator.Apply(original, "modern", weaponOnly);
+
+            var jacketA = baseline.Primitives.First(p => p.Tag == "equipment.modern.jacket");
+            var jacketB = rerolledWeapon.Primitives.First(p => p.Tag == "equipment.modern.jacket");
+            ctx.True(jacketA.Radii.Equals(jacketB.Radii), "weapon reroll changed outfit geometry");
+
+            var propA = baseline.Primitives.First(p => p.Tag == "equipment.modern.prop.body");
+            var propB = rerolledWeapon.Primitives.First(p => p.Tag == "equipment.modern.prop.body");
+            ctx.True(!propA.Radii.Equals(propB.Radii), "weapon reroll did not change weapon geometry");
+
+            var sameAgain = EquipmentGenerator.Apply(original, "modern", seeds);
+            ctx.True(AnatomyHash(baseline) == AnatomyHash(sameAgain), "same per-slot seeds must be deterministic");
+            ctx.True(AnatomyHash(original) == AnatomyHash(family.BuildAnatomy(genome, reg)),
+                "equipment generation must not mutate source anatomy");
+        }
+
         private static void DeterministicMath(TestContext ctx)
         {
             // Bit exact reference values of the DMath kernels. They must be identical on every OS/CPU.
