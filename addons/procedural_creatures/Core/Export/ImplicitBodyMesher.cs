@@ -4,6 +4,7 @@
 // Equipment, hard details, triangles, and interior shapes stay as separate meshes.
 using System;
 using System.Collections.Generic;
+using PixelCreatures.Core;
 using PixelCreatures.Core.Anatomy;
 
 namespace PixelCreatures.Core.Export
