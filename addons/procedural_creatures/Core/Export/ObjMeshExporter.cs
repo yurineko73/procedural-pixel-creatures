@@ -74,10 +74,123 @@ namespace PixelCreatures.Core.Export
                     emitter.Triangle(a, b, c, (p.Flags & PrimFlags.TwoSided) != 0);
                 }
             }
+
+            // Facial features are stored separately from body primitives in CreatureAnatomy.
+            // Export them explicitly so 3D previews retain eyes, pupils, highlights and nostrils.
+            for (int index = 0; index < anatomy.Features.Count; index++)
+                EmitFeature(obj, emitter, anatomy, anatomy.Features[index], index, sides, rings);
+
             return new ObjMeshResult(obj.ToString(), BuildDefaultMaterials(), emitter.VertexCount, emitter.TriangleCount);
         }
 
-        /// <summary>Neutral placeholder materials. Source genome colour ramps are not exported yet.</summary>
+        private static void EmitFeature(StringBuilder obj, MeshEmitter emitter, CreatureAnatomy anatomy,
+            FeatureDef feature, int index, int sides, int rings)
+        {
+            if (feature.Bone < 0 || feature.Bone >= anatomy.Skeleton.Count) return;
+            if (!feature.LocalPosition.IsFinite || !feature.LocalNormal.IsFinite || !DMath.IsFinite(feature.Size) || feature.Size <= 0) return;
+
+            Xform bone = anatomy.Skeleton.RestWorld(feature.Bone);
+            Vec3 position = bone.Point(feature.LocalPosition);
+            Vec3 normal = bone.Dir(feature.LocalNormal).NormalizedOr(Vec3.UnitZ);
+            Vec3 referenceUp = Math.Abs(Vec3.Dot(normal, Vec3.UnitY)) > 0.92 ? Vec3.UnitX : Vec3.UnitY;
+            Vec3 right = Vec3.Cross(referenceUp, normal).NormalizedOr(Vec3.UnitX);
+            Vec3 up = Vec3.Cross(normal, right).NormalizedOr(Vec3.UnitY);
+            Func<Vec3, Vec3> localToWorld = p => position + right * p.X + up * p.Y + normal * p.Z;
+
+            double size = Math.Max(0.7, feature.Size);
+            double aspect = DMath.Clamp(feature.Aspect, 0.55, 1.8);
+            string prefix = "feature_" + index.ToString(CultureInfo.InvariantCulture) + "_";
+
+            if (feature.Kind == FeatureKind.Nostril)
+            {
+                EmitFeatureEllipsoid(obj, emitter, localToWorld, Vec3.Zero,
+                    new Vec3(Math.Max(0.22, size * 0.28), Math.Max(0.22, size * 0.20), Math.Max(0.10, size * 0.10)),
+                    "FeatureNostril", prefix + "nostril", sides, rings);
+                return;
+            }
+
+            if (feature.Kind == FeatureKind.Spot)
+            {
+                string spotMaterial = feature.Material == MaterialSlot.Glow ? "FeatureGlow" : "FeatureHighlight";
+                double radius = Math.Max(0.16, size * 0.22);
+                EmitFeatureEllipsoid(obj, emitter, localToWorld, new Vec3(0, 0, size * 0.08),
+                    new Vec3(radius, radius, radius * 0.65), spotMaterial, prefix + "spot", sides, rings);
+                return;
+            }
+
+            double width = size * aspect;
+            EmitFeatureEllipsoid(obj, emitter, localToWorld, new Vec3(0, 0, size * 0.02),
+                new Vec3(width * 0.70, size * 0.90, size * 0.24),
+                "FeatureSocket", prefix + "socket", sides, rings);
+
+            Vec3 eyeCenter = new Vec3(0, 0, size * 0.13);
+            if (feature.Style == EyeStyle.Round)
+            {
+                EmitFeatureEllipsoid(obj, emitter, localToWorld, eyeCenter,
+                    new Vec3(width * 0.56, size * 0.70, size * 0.22),
+                    "FeatureSclera", prefix + "sclera", sides, rings);
+            }
+
+            if (feature.Style == EyeStyle.Glow)
+            {
+                EmitFeatureEllipsoid(obj, emitter, localToWorld, eyeCenter,
+                    new Vec3(width * 0.52, size * 0.70, size * 0.25),
+                    "FeatureGlow", prefix + "glow", sides, rings);
+                EmitFeatureEllipsoid(obj, emitter, localToWorld,
+                    new Vec3(0, size * 0.22, size * 0.36),
+                    new Vec3(width * 0.13, size * 0.17, size * 0.08),
+                    "FeatureHighlight", prefix + "glow_highlight", sides, rings);
+                return;
+            }
+
+            EmitFeatureEllipsoid(obj, emitter, localToWorld,
+                eyeCenter + new Vec3(feature.Side * size * 0.10, 0, size * 0.16),
+                new Vec3(width * (feature.Style == EyeStyle.Button ? 0.37 : 0.31),
+                    size * (feature.Style == EyeStyle.Button ? 0.46 : 0.43), size * 0.14),
+                feature.Style == EyeStyle.Bead || feature.Style == EyeStyle.Button || feature.Style == EyeStyle.Compound
+                    ? "FeaturePupil" : "FeatureIris",
+                prefix + "iris", sides, rings);
+
+            if (feature.Style == EyeStyle.Slit)
+            {
+                EmitFeatureEllipsoid(obj, emitter, localToWorld,
+                    eyeCenter + new Vec3(feature.Side * size * 0.10, 0, size * 0.27),
+                    new Vec3(Math.Max(0.08, width * 0.075), size * 0.34, size * 0.075),
+                    "FeaturePupil", prefix + "slit", sides, rings);
+            }
+            else if (feature.Style == EyeStyle.Round)
+            {
+                EmitFeatureEllipsoid(obj, emitter, localToWorld,
+                    eyeCenter + new Vec3(feature.Side * size * 0.10, -size * 0.02, size * 0.27),
+                    new Vec3(width * 0.16, size * 0.25, size * 0.08),
+                    "FeaturePupil", prefix + "pupil", sides, rings);
+            }
+            else if (feature.Style == EyeStyle.Compound)
+            {
+                for (int dot = -1; dot <= 1; dot++)
+                    EmitFeatureEllipsoid(obj, emitter, localToWorld,
+                        eyeCenter + new Vec3(dot * width * 0.13, size * 0.12, size * 0.28),
+                        new Vec3(width * 0.07, size * 0.09, size * 0.055),
+                        "FeatureHighlight", prefix + "facet_" + (dot + 1).ToString(CultureInfo.InvariantCulture), sides, rings);
+            }
+
+            double shineScale = feature.Style == EyeStyle.Button ? 0.19 : 0.12;
+            EmitFeatureEllipsoid(obj, emitter, localToWorld,
+                eyeCenter + new Vec3(-feature.Side * size * 0.13, size * 0.20, size * 0.32),
+                new Vec3(width * shineScale, size * shineScale, size * 0.07),
+                "FeatureHighlight", prefix + "shine", sides, rings);
+        }
+
+        private static void EmitFeatureEllipsoid(StringBuilder obj, MeshEmitter emitter,
+            Func<Vec3, Vec3> localToWorld, Vec3 center, Vec3 radii,
+            string material, string objectName, int sides, int rings)
+        {
+            obj.Append("o ").AppendLine(objectName);
+            obj.Append("usemtl ").AppendLine(material);
+            emitter.Ellipsoid(v => localToWorld(center + v), radii, Math.Max(8, sides / 2), Math.Max(5, rings / 2));
+        }
+
+        /// <summary>Neutral placeholder materials. The Godot preview applies the sampled six-shade palette.</summary>
         private static string BuildDefaultMaterials()
         {
             var sb = new StringBuilder("# Placeholder 3D palette; author proper materials in your DCC\n");
@@ -100,7 +213,23 @@ namespace PixelCreatures.Core.Export
                 sb.AppendLine("Ka 0.02 0.02 0.02");
                 sb.AppendLine("d 1.0");
             }
+            AddFeatureMaterial(sb, "FeatureOutline", "0.025 0.02 0.035");
+            AddFeatureMaterial(sb, "FeatureSocket", "0.07 0.045 0.07");
+            AddFeatureMaterial(sb, "FeatureSclera", "0.92 0.87 0.77");
+            AddFeatureMaterial(sb, "FeatureIris", "0.48 0.22 0.16");
+            AddFeatureMaterial(sb, "FeaturePupil", "0.018 0.012 0.025");
+            AddFeatureMaterial(sb, "FeatureHighlight", "1.0 0.96 0.86");
+            AddFeatureMaterial(sb, "FeatureGlow", "0.2 0.85 1.0");
+            AddFeatureMaterial(sb, "FeatureNostril", "0.06 0.025 0.035");
             return sb.ToString();
+        }
+
+        private static void AddFeatureMaterial(StringBuilder sb, string name, string color)
+        {
+            sb.Append("newmtl ").AppendLine(name);
+            sb.Append("Kd ").AppendLine(color);
+            sb.AppendLine("Ka 0.02 0.02 0.02");
+            sb.AppendLine("d 1.0");
         }
 
         private sealed class MeshEmitter
