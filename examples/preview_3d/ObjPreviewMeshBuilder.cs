@@ -108,7 +108,7 @@ namespace PixelCreatures.Examples
             _toonShader = new Shader
             {
                 Code = @"shader_type spatial;
-render_mode specular_disabled, ambient_light_disabled;
+render_mode cull_disabled, specular_disabled, ambient_light_disabled;
 
 uniform vec4 ramp_outline : source_color = vec4(0.04, 0.03, 0.05, 1.0);
 uniform vec4 ramp_deep : source_color = vec4(0.12, 0.10, 0.15, 1.0);
@@ -161,20 +161,21 @@ void light() {
 
         private static (MaterialSlot Slot, int FixedShade, bool Emissive) ResolveMaterial(string name)
         {
-            return name switch
+            switch (name)
             {
-                "FeatureOutline" => (MaterialSlot.Primary, Shade.Outline, false),
-                "FeatureSocket" => (MaterialSlot.Primary, Shade.Deep, false),
-                "FeatureSclera" => (MaterialSlot.Teeth, Shade.Base, false),
-                "FeatureIris" => (MaterialSlot.Eye, Shade.Base, false),
-                "FeaturePupil" => (MaterialSlot.Primary, Shade.Outline, false),
-                "FeatureHighlight" => (MaterialSlot.Teeth, Shade.Highlight, false),
-                "FeatureGlow" => (MaterialSlot.Glow, Shade.Light, true),
-                "FeatureNostril" => (MaterialSlot.Primary, Shade.Deep, false),
-                _ when Enum.TryParse(name, out MaterialSlot slot) && slot != MaterialSlot.Count =>
-                    (slot, -1, slot == MaterialSlot.Glow),
-                _ => (MaterialSlot.Primary, -1, false),
-            };
+                case "FeatureOutline": return (MaterialSlot.Primary, Shade.Outline, false);
+                case "FeatureSocket": return (MaterialSlot.Primary, Shade.Deep, false);
+                case "FeatureSclera": return (MaterialSlot.Teeth, Shade.Base, false);
+                case "FeatureIris": return (MaterialSlot.Eye, Shade.Base, false);
+                case "FeaturePupil": return (MaterialSlot.Primary, Shade.Outline, false);
+                case "FeatureHighlight": return (MaterialSlot.Teeth, Shade.Highlight, false);
+                case "FeatureGlow": return (MaterialSlot.Glow, Shade.Light, true);
+                case "FeatureNostril": return (MaterialSlot.Primary, Shade.Deep, false);
+            }
+
+            if (Enum.TryParse(name, out MaterialSlot slot) && slot != MaterialSlot.Count)
+                return (slot, -1, slot == MaterialSlot.Glow);
+            return (MaterialSlot.Primary, -1, false);
         }
     }
 }
