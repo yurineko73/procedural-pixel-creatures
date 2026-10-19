@@ -120,3 +120,19 @@ Additional source changes committed (still **not visually verified in Godot**):
 - Added a CoreHarness regression for fused organic skin while ensuring gear remains separate.
 
 **Next acceptance gate:** rebuild the Godot C# project and run `examples/preview_3d/CreaturePreview3D.tscn`; verify no shader errors, inspect biped plus at least one faceted/golem and non-biped family, and run the new `export.obj_unifies_organic_primitives` and existing export tests. This is a source-level fix only until those checks are run. If the skin is fused but still too lumpy, tune voxel resolution and smooth-union radius based on screenshots rather than reverting to overlapping closed ellipsoids.
+
+
+## Follow-up: opaque surface, closed topology, and fitted garments (2026-10-19)
+
+The three new screenshots show that the apparent transparency is actually consistent with missing/open surface patches and unreliable triangle orientation rather than alpha blending alone. The preview shader uses RGB albedo, but its default face culling could still discard incorrectly oriented surface triangles.
+
+Further source changes committed:
+- Explicitly set the preview toon material to `cull_disabled, depth_draw_opaque`. This keeps the preview opaque and depth-writing while ensuring a reversed face cannot disappear solely because of winding.
+- Lowered organic SDF smooth-union radius from 2.0 to 0.9 pixels and refined the target voxel step from 2.0 to 1.25 pixels (bounded by the grid-point cap). The field now uses a continuous smooth-min instead of switching abruptly at a distance threshold.
+- Orient each extracted triangle using the numerical gradient of the signed-distance field, so normals follow the actual outer surface rather than relying only on tetrahedron-centroid direction.
+- Weld exact grid-point intersections in a dedicated cache. Previously, a surface passing exactly through a sampled grid vertex could create multiple coincident vertices on different edges, leaving cracks in the shell.
+- Added closed-manifold diagnostics (boundary and non-manifold edge counts) and a regression assertion for the fused body.
+- Fuse soft clothing ellipsoids by garment group for tunic, undercoat, breastplate, robe, skirt and loincloth flaps. Hard helmets, shields, pauldrons, buckles and thin/faceted details remain separate.
+- Increase the biped tunic/undercoat/breastplate/robe clearance slightly so the garment skin sits outside the fused body instead of z-fighting/intersecting it.
+
+**Validation status:** source and structural checks only; this environment cannot resolve GitHub to clone/build the repository, and the changes have not yet been compiled or visually tested in Godot. Rebuild the preview, inspect front/side/back, and run `export.obj_unifies_organic_primitives`. If the boundary-edge assertion fails, investigate the mesher topology before further visual tuning.
