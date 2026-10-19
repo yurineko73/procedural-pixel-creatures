@@ -17,7 +17,7 @@ godot --path . res://examples/preview_3d/CreaturePreview3D.tscn
 ## Controls
 
 - Choose a creature family.
-- **Body Seed** controls the body morphology and body palette. Enter a numeric or text seed; press Enter or **Regenerate** to reproduce it. **Random Body** changes only this seed.
+- **Body Seed** controls the body morphology and body palette. Enter a numeric or text seed; press Enter or **Regenerate** to reproduce it. **Random Body** changes only this seed. **Random All** changes both body and equipment seeds.
 - **Equipment Seed** is independent of the body. Changing it re-derives the outfit, weapon, headgear and accessory streams, as well as the equipment colour seed. **Random All Gear** changes only this master seed.
 - Use **Random Outfit**, **Random Weapon**, **Random Headgear**, and **Random Accessory** to reroll one equipment category while preserving the other category seeds. The active per-slot seeds are shown below the master equipment seed.
 - Enable/disable equipment.
