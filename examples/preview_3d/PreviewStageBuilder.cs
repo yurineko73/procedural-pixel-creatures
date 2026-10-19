@@ -15,7 +15,7 @@ namespace PixelCreatures.Examples
                 BackgroundColor = new Color(0.055f, 0.067f, 0.09f),
                 AmbientLightSource = Godot.Environment.AmbientSource.Color,
                 AmbientLightColor = new Color(0.57f, 0.62f, 0.72f),
-                AmbientLightEnergy = 0.72f,
+                AmbientLightEnergy = 0.38f,
                 TonemapMode = Godot.Environment.ToneMapper.Filmic,
                 GlowEnabled = true,
                 GlowIntensity = 0.35f,
@@ -37,7 +37,7 @@ namespace PixelCreatures.Examples
                 Name = "FillLight",
                 RotationDegrees = new Vector3(-20, 145, 0),
                 LightColor = new Color(0.46f, 0.68f, 1.0f),
-                LightEnergy = 0.62f,
+                LightEnergy = 0.48f,
                 ShadowEnabled = false,
             });
 
