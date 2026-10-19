@@ -10,9 +10,10 @@
 - `examples/preview_3d/ObjPreviewMeshBuilder.cs`: OBJ-to-Godot indexed surfaces, face-feature material mapping and a six-level palette-ramp toon shader.
 
 - `Core/Export/ObjMeshExporter.cs`: engine-independent **rest-pose OBJ + MTL** output from `CreatureAnatomy` primitives (ellipsoids, round cones, triangles) plus separately stored facial features (eye sockets, sclera, iris/pupil, highlights, nostrils and spots), with deterministic vertex order, material-slot grouping and unit scaling.
-- `Core/Equipment/EquipmentPacks.cs`: a separate registry and deterministic `EquipmentGenerator.Apply` overlay. `EquipmentSeedSet` exposes independent `Outfit`, `Weapon`, `Headgear` and `Accessory` streams. Bundled styles: `modern` (jacket/vest, accessories, multiple headgear variants, fictional sidearm prop), `scifi` (breastplate, light core, shoulders, variable helmet, fictional energy blaster prop), and `wasteland` (coat, randomized scrap plates, bandana/scrap helmet/respirator, tool prop).
+- `Core/Equipment/EquipmentPacks.cs`: a separate registry and deterministic `EquipmentGenerator.Apply` overlay. `EquipmentSeedSet` exposes independent `Outfit`, `Weapon`, `Headgear` and `Accessory` streams.
+- `Core/Equipment/NativeGearRandomizer.cs`: applies independent seeds to the legacy Fantasy gear genes and keeps clothing/metal colour genes tied to the master equipment seed, without changing the BipedFamily schema. Bundled styles: `modern` (jacket/vest, accessories, multiple headgear variants, fictional sidearm prop), `scifi` (breastplate, light core, shoulders, variable helmet, fictional energy blaster prop), and `wasteland` (coat, randomized scrap plates, bandana/scrap helmet/respirator, tool prop).
 - `tools/core_harness` command `obj`: export an existing creature, optionally with additional geometry from a style pack.
-- Engine-independent tests for deterministic OBJ generation, nonempty meshes, equipment generation, and no source anatomy mutation.
+- Engine-independent tests for deterministic OBJ generation, face-feature materials, nonempty meshes, overlay slot isolation, native Fantasy gear slot isolation, and no source anatomy mutation.
 
 ## Try it (requires .NET SDK 8)
 
@@ -50,7 +51,8 @@ Use relevant namespaces `PixelCreatures.Core`, `PixelCreatures.Core.Genetics`, `
 ```text
 Existing Genome -> CreatureAnatomy -> pixel pipeline [unchanged]
                               |
-                              +-> EquipmentGenerator.Apply(base, pack, seed)
+                              +-> NativeGearRandomizer.ApplyNativeGearGenes(baseGenome, family, masterSeed, slotSeeds)
+                              +-> EquipmentGenerator.Apply(baseAnatomy, stylePack, slotSeeds)
                                          |
                                          +-> IEquipmentStylePack registry
                                          +-> derived seed per piece
