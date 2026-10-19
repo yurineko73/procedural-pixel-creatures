@@ -14,7 +14,7 @@
 | M0 Repository, branch and documents | complete | Branch and Drive folder created |
 | M1 Static OBJ + MTL geometry exporter | code committed, not run | Requires .NET 8 build + OBJ visual inspection |
 | M2 Independent style pack framework | code committed, not run | Modern / sci-fi / wasteland deterministic overlays |
-| M3 Godot 3D previewer | planned | Openable Godot scene with seed/style controls |
+| M3 Godot 3D previewer | code committed, not run | Standalone scene with family/seed/style/equipment controls, orbit camera and OBJ export |
 | M4 Skeleton3D / skin / glTF / GLB | planned | Export + re-import + animation comparison |
 | M5 Continuous topology / material / fitted clothes | planned | Body geometry, UV and clipping validation |
 | M6 Performance, packaging and documentation | planned | Batch benchmark + release checks |
@@ -46,3 +46,15 @@
 ## Continuation note
 
 Do not start by modifying `BipedFamily` or original gene schema. Continue from this branch, run the build and report the first real test results before marking M1/M2 as validated. Use small, reusable components; prefer independent shape builders and style-pack registration over giant switches or scene-specific scripts.
+
+
+## M3 preview scene added (2026-10-19)
+
+- `examples/preview_3d/CreaturePreview3D.tscn` is a separate run-current-scene entry point; the existing `workshop/Main.tscn` remains the project start scene.
+- `examples/preview_3d/CreaturePreview3D.cs` creates the 3D stage, lights, ground grid, pedestal, orbit camera and control panel at runtime.
+- UI includes family selector, text/numeric seed + random seed, regenerate, equipment toggle, Fantasy/Modern/Sci-Fi/Wasteland style selector, reset view and OBJ/MTL export.
+- Modern/Sci-Fi/Wasteland use the separate biped equipment packs; other families fall back to Fantasy.
+- Live meshes use the sampled palette by material slot. OBJ/MTL exports are saved to `user://exports/3d-preview/`.
+- `examples/preview_3d/README.md` documents running and limitations.
+
+**Validation remains pending:** neither Godot nor .NET SDK is installed in the current execution environment, and no GitHub Actions run/status was returned for the branch. Do not mark M3 complete until C# import/build, headless checks and visual inspection in Godot pass.
