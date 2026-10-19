@@ -84,7 +84,7 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 - Fantasy native gear is sampled from independent slot seeds (gear.outfit, gear.weapon, gear.helmet, gear.shield, gear.pauldrons). Its legacy shared gear.size remains controlled by the master gear seed. Cloth/metal colour genes are also tied to the master equipment seed.
 - OBJ now exports the separately stored CreatureAnatomy.Features: eye sockets, sclera, iris/pupil, highlights, nostrils and spots, each with named material groups.
 - The Godot preview now maps the palette's six shades through a stepped toon shader rather than using only each slot's base colour. Feature material names map to dark sockets/pupils, sclera, iris, highlights and glow.
-- Tests were added for facial-feature OBJ output, overlay slot isolation (weapon reroll leaves jacket geometry stable), and native Fantasy gear slot isolation (weapon reroll leaves outfit/headgear/accessory genes stable).
+- Tests were added for facial-feature OBJ output, overlay slot isolation (weapon reroll leaves jacket geometry stable), and native Fantasy gear slot isolation (weapon reroll leaves outfit/headgear/accessory genes stable; changing Body Seed does not reroll gear choices or clothing colour).
 
 ### Required revalidation before merge
 
