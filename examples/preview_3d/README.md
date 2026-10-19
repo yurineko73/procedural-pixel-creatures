@@ -51,3 +51,10 @@ The preview shader's `light()` processor must not use an early `return`; lightin
 Organic Primary/Secondary ellipsoids and tapered segments are now extracted as a shared signed-distance outer skin; equipment, hard/faceted pieces, membranes/triangles, and interior details stay separate. This prevents the preview from displaying the inside shells of every overlapping body primitive. The toon shader also preserves the base material hue more consistently and allows ambient fill so shadowed surfaces do not collapse to black. Frustum caps use separate vertices from side rings for clean normals.
 
 These changes are committed but require a Godot 4.7.1 rebuild and visual verification. The preview is still a static mesh, not a rigged or animated character.
+
+
+## Opaque mesh and garment fit follow-up (2026-10-19)
+
+The preview shader now explicitly uses opaque depth drawing and disabled face culling to avoid holes caused solely by inconsistent face winding. The organic mesher uses a continuous smooth-min field, finer voxel resolution, gradient-based triangle orientation, and exact-grid-point vertex welding; it exposes boundary/non-manifold edge counters for tests. Soft tunic/robe/undercoat/breastplate/skirt/flap groups are fused independently into fitted outer surfaces, while hard armour details and other equipment remain separate. Biped garment clearance was increased slightly to avoid skin/cloth intersections.
+
+Not yet validated in a running Godot scene. Check front, side, and rear views after rebuilding; this source change must not be considered visually accepted until the body shell has no holes and garments no longer appear as stacked overlapping blobs.
