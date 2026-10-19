@@ -108,7 +108,7 @@ namespace PixelCreatures.Examples
             _toonShader = new Shader
             {
                 Code = @"shader_type spatial;
-render_mode cull_disabled, specular_disabled, ambient_light_disabled;
+render_mode specular_disabled, ambient_light_disabled;
 
 uniform vec4 ramp_outline : source_color = vec4(0.04, 0.03, 0.05, 1.0);
 uniform vec4 ramp_deep : source_color = vec4(0.12, 0.10, 0.15, 1.0);
@@ -129,15 +129,16 @@ void fragment() {
 
 void light() {
     float n_dot_l = max(dot(NORMAL, LIGHT), 0.0);
-    if (n_dot_l < 0.025) {
-        return;
+    if (n_dot_l >= 0.025) {
+        vec3 band = ramp_deep.rgb;
+        if (n_dot_l >= 0.20) band = ramp_shadow.rgb;
+        if (n_dot_l >= 0.42) band = ramp_base.rgb;
+        if (n_dot_l >= 0.68) band = ramp_light.rgb;
+        if (n_dot_l >= 0.88) band = ramp_highlight.rgb;
+        // The palette ramp is already an authored colour value. Keep the two preview
+        // lights from washing light shades toward white.
+        DIFFUSE_LIGHT += band * LIGHT_COLOR * ATTENUATION * 0.62;
     }
-    vec3 band = ramp_deep.rgb;
-    if (n_dot_l >= 0.20) band = ramp_shadow.rgb;
-    if (n_dot_l >= 0.42) band = ramp_base.rgb;
-    if (n_dot_l >= 0.68) band = ramp_light.rgb;
-    if (n_dot_l >= 0.88) band = ramp_highlight.rgb;
-    DIFFUSE_LIGHT += band * LIGHT_COLOR * ATTENUATION;
 }"
             };
             return _toonShader;
