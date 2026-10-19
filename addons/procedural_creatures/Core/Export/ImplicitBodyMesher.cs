@@ -207,6 +207,7 @@ namespace PixelCreatures.Core.Export
             }
 
             var edgeVertices = new Dictionary<long, int>();
+            var exactGridVertices = new Dictionary<int, int>();
             int[] cube = new int[8];
             int[] tetra = new int[4];
             int[] inside = new int[4];
@@ -227,7 +228,7 @@ namespace PixelCreatures.Core.Export
                 foreach (int[] split in Tetrahedra)
                 {
                     for (int i = 0; i < 4; i++) tetra[i] = cube[split[i]];
-                    EmitTetra(tetra, points, distances, inside, outside, edgeVertices, mesh, shapes, smoothness);
+                    EmitTetra(tetra, points, distances, inside, outside, edgeVertices, exactGridVertices, mesh, shapes, smoothness);
                 }
             }
 
@@ -313,7 +314,7 @@ namespace PixelCreatures.Core.Export
 
         private static void EmitTetra(int[] tetra, Vec3[] points, double[] distances,
             int[] inside, int[] outside, Dictionary<long, int> edgeVertices,
-            MeshData mesh, List<Shape> shapes, double smoothness)
+            Dictionary<int, int> exactGridVertices, MeshData mesh, List<Shape> shapes, double smoothness)
         {
             int inCount = 0, outCount = 0;
             for (int i = 0; i < 4; i++)
@@ -327,9 +328,9 @@ namespace PixelCreatures.Core.Export
             if (inCount == 1)
             {
                 int a = inside[0], b = outside[0], c = outside[1], d = outside[2];
-                int v0 = EdgeVertex(a, b, points, distances, edgeVertices, mesh);
-                int v1 = EdgeVertex(a, c, points, distances, edgeVertices, mesh);
-                int v2 = EdgeVertex(a, d, points, distances, edgeVertices, mesh);
+                int v0 = EdgeVertex(a, b, points, distances, edgeVertices, exactGridVertices, mesh);
+                int v1 = EdgeVertex(a, c, points, distances, edgeVertices, exactGridVertices, mesh);
+                int v2 = EdgeVertex(a, d, points, distances, edgeVertices, exactGridVertices, mesh);
                 Vec3 outward = (points[b] + points[c] + points[d]) / 3.0 - points[a];
                 AddTriangle(v0, v1, v2, outward, mesh, shapes, smoothness);
                 return;
@@ -347,28 +348,44 @@ namespace PixelCreatures.Core.Export
             }
 
             int i0 = inside[0], i1 = inside[1], o0 = outside[0], o1 = outside[1];
-            int p00 = EdgeVertex(i0, o0, points, distances, edgeVertices, mesh);
-            int p01 = EdgeVertex(i0, o1, points, distances, edgeVertices, mesh);
-            int p10 = EdgeVertex(i1, o0, points, distances, edgeVertices, mesh);
-            int p11 = EdgeVertex(i1, o1, points, distances, edgeVertices, mesh);
+            int p00 = EdgeVertex(i0, o0, points, distances, edgeVertices, exactGridVertices, mesh);
+            int p01 = EdgeVertex(i0, o1, points, distances, edgeVertices, exactGridVertices, mesh);
+            int p10 = EdgeVertex(i1, o0, points, distances, edgeVertices, exactGridVertices, mesh);
+            int p11 = EdgeVertex(i1, o1, points, distances, edgeVertices, exactGridVertices, mesh);
             Vec3 direction = (points[o0] + points[o1] - points[i0] - points[i1]) * 0.5;
             AddTriangle(p00, p01, p10, direction, mesh, shapes, smoothness);
             AddTriangle(p01, p11, p10, direction, mesh, shapes, smoothness);
         }
 
         private static int EdgeVertex(int a, int b, Vec3[] points, double[] distances,
-            Dictionary<long, int> edgeVertices, MeshData mesh)
+            Dictionary<long, int> edgeVertices, Dictionary<int, int> exactGridVertices, MeshData mesh)
         {
+            double da = distances[a], db = distances[b];
+            // If the isosurface passes exactly through a sampled grid point, all intersecting
+            // tetrahedron edges must reuse that one vertex. Edge-only caching duplicates it and
+            // leaves tiny cracks / non-manifold seams in the otherwise closed skin.
+            if (Math.Abs(da) < 1e-10) return ExactGridVertex(a, points, exactGridVertices, mesh);
+            if (Math.Abs(db) < 1e-10) return ExactGridVertex(b, points, exactGridVertices, mesh);
+
             int low = Math.Min(a, b), high = Math.Max(a, b);
             long key = ((long)low << 32) | (uint)high;
             if (edgeVertices.TryGetValue(key, out int existing)) return existing;
-            double da = distances[a], db = distances[b];
             double denominator = da - db;
             double t = Math.Abs(denominator) > 1e-12 ? da / denominator : 0.5;
             t = Math.Max(0, Math.Min(1, t));
             int index = mesh.Vertices.Count;
             mesh.Vertices.Add(Vec3.Lerp(points[a], points[b], t));
             edgeVertices.Add(key, index);
+            return index;
+        }
+
+        private static int ExactGridVertex(int gridIndex, Vec3[] points,
+            Dictionary<int, int> exactGridVertices, MeshData mesh)
+        {
+            if (exactGridVertices.TryGetValue(gridIndex, out int existing)) return existing;
+            int index = mesh.Vertices.Count;
+            mesh.Vertices.Add(points[gridIndex]);
+            exactGridVertices.Add(gridIndex, index);
             return index;
         }
 
