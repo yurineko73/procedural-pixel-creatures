@@ -162,6 +162,15 @@ namespace PixelCreatures.Tests
             ctx.Equal(body.Get("form"), changed.Get("form"), "gear reroll changed body archetype");
             ctx.Equal(body.Get("head.size"), changed.Get("head.size"), "gear reroll changed body head size");
             ctx.Equal(coloredBody.Get("color.clothHue"), changed.Get("color.clothHue"), "weapon reroll changed gear colour");
+
+            var otherBody = GenomeFactory.Sample(family, 887767UL);
+            var otherColoredBody = NativeGearRandomizer.ApplyEquipmentColors(otherBody, family,
+                StableHash.Derive(masterSeed, "equipment.colors"));
+            var sameGearOnOtherBody = NativeGearRandomizer.ApplyNativeGearGenes(otherColoredBody, family, masterSeed, seeds);
+            ctx.Equal(baseline.Get("gear.outfit"), sameGearOnOtherBody.Get("gear.outfit"), "body seed changed outfit choice");
+            ctx.Equal(baseline.Get("gear.weapon"), sameGearOnOtherBody.Get("gear.weapon"), "body seed changed weapon choice");
+            ctx.Equal(baseline.Get("gear.helmet"), sameGearOnOtherBody.Get("gear.helmet"), "body seed changed headgear choice");
+            ctx.Equal(baseline.Get("color.clothHue"), sameGearOnOtherBody.Get("color.clothHue"), "body seed changed clothing colour");
         }
 
         private static void DeterministicMath(TestContext ctx)
