@@ -14,6 +14,51 @@ namespace PixelCreatures.Core.Equipment
         void Build(EquipmentBuildContext context);
     }
 
+    public enum EquipmentSlot
+    {
+        Outfit,
+        Weapon,
+        Headgear,
+        Accessory,
+    }
+
+    /// <summary>
+    /// Independent deterministic random streams for equipment categories. Re-rolling one slot
+    /// leaves the geometry of all other slots unchanged.
+    /// </summary>
+    public sealed class EquipmentSeedSet
+    {
+        public ulong OutfitSeed { get; }
+        public ulong WeaponSeed { get; }
+        public ulong HeadgearSeed { get; }
+        public ulong AccessorySeed { get; }
+
+        public EquipmentSeedSet(ulong outfitSeed, ulong weaponSeed, ulong headgearSeed, ulong accessorySeed)
+        {
+            OutfitSeed = outfitSeed;
+            WeaponSeed = weaponSeed;
+            HeadgearSeed = headgearSeed;
+            AccessorySeed = accessorySeed;
+        }
+
+        public ulong For(EquipmentSlot slot) => slot switch
+        {
+            EquipmentSlot.Outfit => OutfitSeed,
+            EquipmentSlot.Weapon => WeaponSeed,
+            EquipmentSlot.Headgear => HeadgearSeed,
+            _ => AccessorySeed,
+        };
+
+        public static EquipmentSeedSet FromMaster(ulong seed) => new EquipmentSeedSet(
+            StableHash.Derive(seed, "equipment.slot.outfit"),
+            StableHash.Derive(seed, "equipment.slot.weapon"),
+            StableHash.Derive(seed, "equipment.slot.headgear"),
+            StableHash.Derive(seed, "equipment.slot.accessory"));
+
+        public string Fingerprint => $"{OutfitSeed:x16}-{WeaponSeed:x16}-{HeadgearSeed:x16}-{AccessorySeed:x16}";
+    }
+
+
     /// <summary>Pluggable registry: new styles register without modifying the core assembler.</summary>
     public sealed class EquipmentStyleRegistry
     {
@@ -45,23 +90,24 @@ namespace PixelCreatures.Core.Equipment
     public sealed class EquipmentBuildContext
     {
         private readonly CreatureAnatomy _source;
-        private readonly ulong _seed;
+        private readonly EquipmentSeedSet _seeds;
         private readonly List<PartGroup> _groups;
         private readonly List<PrimitiveDef> _shapes;
         private readonly List<string> _traits;
         private readonly string _style;
 
-        internal EquipmentBuildContext(CreatureAnatomy source, string style, ulong seed)
+        internal EquipmentBuildContext(CreatureAnatomy source, string style, EquipmentSeedSet seeds)
         {
-            _source = source; _style = style; _seed = seed;
+            _source = source; _style = style; _seeds = seeds;
             _groups = new List<PartGroup>(source.Groups);
             _shapes = new List<PrimitiveDef>(source.Primitives);
             _traits = new List<string>(source.Traits);
             _traits.Add("equipment.style:" + style);
         }
 
-        /// <summary>Independent per-component streams, stable across optional component additions.</summary>
-        public Rng RandomFor(string part) => Rng.Derive(_seed, "equipment." + _style + "." + part);
+        /// <summary>Named per-component stream derived from an independently seeded equipment slot.</summary>
+        public Rng RandomFor(string part, EquipmentSlot slot) =>
+            Rng.Derive(_seeds.For(slot), "equipment." + _style + "." + slot.ToString().ToLowerInvariant() + "." + part);
 
         public int FindBone(BoneRole role, int side = 0)
         {
@@ -138,7 +184,7 @@ namespace PixelCreatures.Core.Equipment
         {
             // The original pixel canvas is deliberately unchanged. This decorated model is
             // intended for the OBJ/3D pipeline, not the 2D sprite renderer.
-            ulong key = StableHash.Derive(_source.AnatomyKey, "equipment." + _style + "." + _seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            ulong key = StableHash.Derive(_source.AnatomyKey, "equipment." + _style + "." + _seeds.Fingerprint);
             return new CreatureAnatomy(_source.FamilyId, _source.Skeleton, _groups, _shapes,
                 new List<FeatureDef>(_source.Features), _source.Rig, _source.Metrics, _source.Canvas,
                 new List<string>(_source.Repairs), _traits, key);
@@ -152,13 +198,18 @@ namespace PixelCreatures.Core.Equipment
         /// the BipedFamily schema/generation. Use 'fantasy' to keep the original equipment.
         /// </summary>
         public static CreatureAnatomy Apply(CreatureAnatomy source, string styleId, ulong seed,
+            EquipmentStyleRegistry? registry = null) =>
+            Apply(source, styleId, EquipmentSeedSet.FromMaster(seed), registry);
+
+        public static CreatureAnatomy Apply(CreatureAnatomy source, string styleId, EquipmentSeedSet seeds,
             EquipmentStyleRegistry? registry = null)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
+            if (seeds == null) throw new ArgumentNullException(nameof(seeds));
             if (string.Equals(styleId, "fantasy", StringComparison.OrdinalIgnoreCase)) return source;
             registry ??= EquipmentStyleRegistry.CreateDefault();
             IEquipmentStylePack pack = registry.Get(styleId);
-            var context = new EquipmentBuildContext(source, pack.Id, seed);
+            var context = new EquipmentBuildContext(source, pack.Id, seeds);
             pack.Build(context);
             return context.Build();
         }
@@ -174,16 +225,16 @@ namespace PixelCreatures.Core.Equipment
             int chest = c.RequireBone(BoneRole.Chest);
             int head = c.RequireBone(BoneRole.Head);
             int hand = c.RequireBone(BoneRole.Hand, 1);
-            var jacket = c.RandomFor("jacket");
+            var jacket = c.RandomFor("jacket", EquipmentSlot.Outfit);
             c.Cover("jacket", chest, jacket.Range(1.09, 1.18), MaterialSlot.Cloth);
             var shell = c.FindShell(chest)!;
-            if (c.RandomFor("vest").Chance(0.7))
+            if (c.RandomFor("vest", EquipmentSlot.Outfit).Chance(0.7))
                 c.Ellipsoid("vest", chest, shell.LocalA + new Vec3(0, -shell.Radii.Y * 0.5, 0),
                     new Vec3(shell.Radii.X * 0.75, shell.Radii.Y * 0.5, shell.Radii.Z * 0.92), MaterialSlot.Cloth);
-            if (c.RandomFor("backpack").Chance(0.7))
+            if (c.RandomFor("backpack", EquipmentSlot.Outfit).Chance(0.7))
                 c.Ellipsoid("backpack", chest, shell.LocalA + new Vec3(0, shell.Radii.Y * 1.12, 0),
                     new Vec3(shell.Radii.X * 0.65, shell.Radii.Y * 0.45, shell.Radii.Z * 0.82), MaterialSlot.Cloth);
-            if (c.RandomFor("cap").Chance(0.55))
+            if (c.RandomFor("cap", EquipmentSlot.Headgear).Chance(0.55))
             {
                 var skull = c.FindShell(head);
                 if (skull != null)
@@ -191,7 +242,7 @@ namespace PixelCreatures.Core.Equipment
                         new Vec3(skull.Radii.X * 1.05, skull.Radii.Y * 0.37, skull.Radii.Z * 1.1), MaterialSlot.Cloth);
             }
             // Fictional sidearm game prop (visual only, no functioning mechanisms).
-            var prop = c.RandomFor("prop");
+            var prop = c.RandomFor("prop", EquipmentSlot.Weapon);
             double s = prop.Range(1.6, 2.5);
             c.Ellipsoid("prop.body", hand, new Vec3(s * 0.48, 0.15, 0),
                 new Vec3(s * 0.8, s * 0.23, s * 0.20), MaterialSlot.Metal);
@@ -210,7 +261,7 @@ namespace PixelCreatures.Core.Equipment
             int chest = c.RequireBone(BoneRole.Chest);
             int head = c.RequireBone(BoneRole.Head);
             int hand = c.RequireBone(BoneRole.Hand, 1);
-            var s = c.RandomFor("armor");
+            var s = c.RandomFor("armor", EquipmentSlot.Outfit);
             c.Cover("breastplate", chest, s.Range(1.12, 1.21), MaterialSlot.Metal);
             var shell = c.FindShell(chest)!;
             c.Ellipsoid("core", chest, shell.LocalA + new Vec3(0, -shell.Radii.Y * 1.17, 0),
@@ -220,7 +271,7 @@ namespace PixelCreatures.Core.Equipment
             {
                 int shoulder = c.FindBone(BoneRole.ArmUpper, side);
                 if (shoulder < 0) continue;
-                double size = c.RandomFor("shoulder." + side).Range(1.1, 1.8);
+                double size = c.RandomFor("shoulder." + side, EquipmentSlot.Accessory).Range(1.1, 1.8);
                 c.Ellipsoid("shoulder." + side, shoulder, new Vec3(0, 0.5, 0),
                     new Vec3(size * 1.3, size * 0.72, size * 1.25), MaterialSlot.Metal);
             }
@@ -234,7 +285,7 @@ namespace PixelCreatures.Core.Equipment
                     MaterialSlot.Glow, PrimFlags.Emissive);
             }
             // Stylized energy weapon: component proportions vary deterministically.
-            var w = c.RandomFor("blaster");
+            var w = c.RandomFor("blaster", EquipmentSlot.Weapon);
             double length = w.Range(2.4, 4.8), width = w.Range(0.38, 0.75);
             c.Ellipsoid("blaster.receiver", hand, new Vec3(length * 0.42, 0, 0),
                 new Vec3(length * 0.48, width, width * 0.85), MaterialSlot.Metal);
@@ -256,7 +307,7 @@ namespace PixelCreatures.Core.Equipment
             int hand = c.RequireBone(BoneRole.Hand, 1);
             var shell = c.FindShell(chest)!;
             c.Cover("patched.coat", chest, 1.12, MaterialSlot.Cloth);
-            var random = c.RandomFor("scrap.plates");
+            var random = c.RandomFor("scrap.plates", EquipmentSlot.Accessory);
             int count = random.Range(2, 4);
             for (int i = 0; i < count; i++)
                 c.Ellipsoid("scrap.plate." + i, chest,
