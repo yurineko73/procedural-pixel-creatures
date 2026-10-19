@@ -15,7 +15,7 @@
 |---|---|---|
 | M0 Repository, branch and documents | complete | Branch and Drive folder created |
 | M1 Static OBJ + MTL geometry exporter | earlier baseline passed; latest face-feature export needs re-test | rerun `export.obj_static_all_families`; inspect eyes/material groups in Blender |
-| M2 Independent style pack framework | earlier baseline passed; latest per-slot seed changes need re-test | rerun `equipment.style_overlay_deterministic` and `equipment.slot_seeds_are_independent` |
+| M2 Independent style pack framework | earlier baseline passed; latest per-slot seed changes need re-test | rerun `equipment.style_overlay_deterministic`, `equipment.slot_seeds_are_independent` and `equipment.native_gear_slot_seeds_are_independent` |
 | M3 Godot 3D previewer | prior baseline passed; latest controls/shader changes need re-test | rebuild, headless startup, verify slot rerolls and toon-shaded face details visually |
 | M4 Skeleton3D / skin / glTF / GLB | planned | Export + re-import + animation comparison |
 | M5 Continuous topology / material / fitted clothes | planned | Body geometry, UV and clipping validation |
