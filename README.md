@@ -17,6 +17,11 @@ refinements with GPT Astra. The author's estimate is roughly 95% initial prompt 
 
 ## Quick start
 
+**Current development branch:** the C# project and local editor configuration use Godot **4.7.1 .NET**.
+The automatic launcher below still pins **4.5.2** and has not been migrated or validated for this branch.
+For this branch, use a local 4.7.1 .NET editor: run `dotnet build`, import the project, then press F5
+for the workshop or F6 for an examples scene. See `examples/preview_3d/README.md`.
+
 1. Clone this repository or choose **Code → Download ZIP** on GitHub.
 2. Extract the ZIP into a writable folder on **Windows 10/11 x64**.
 3. Double-click **`Start.cmd`**.

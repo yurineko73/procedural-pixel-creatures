@@ -85,6 +85,7 @@ namespace PixelCreatures.Tests
 
         private async Task RuntimeTests()
         {
+            await _runner.RunAsync("runtime.examples_build_models", ExamplesBuildModels);
             await _runner.RunAsync("runtime.samples_load_and_build", SamplesLoad);
             await _runner.RunAsync("runtime.async_build_discards_stale_results", AsyncBuild);
             await _runner.RunAsync("runtime.actor_renders_and_uploads", ActorRenders);
@@ -99,6 +100,40 @@ namespace PixelCreatures.Tests
         }
 
         // ------------------------------------------------------------------ tests
+
+        private async Task ExamplesBuildModels(TestContext ctx)
+        {
+            var minimal = GD.Load<PackedScene>("res://examples/minimal_integration/MinimalIntegration.tscn").Instantiate();
+            AddChild(minimal);
+            try
+            {
+                var actors = minimal.GetNode("Creatures").GetChildren().OfType<CreatureActor>().ToArray();
+                for (int i = 0; i < 600 && actors.Any(actor => actor.Model == null); i++) await NextFrame();
+                ctx.Equal(5, actors.Length, "placed and generated actors exist");
+                ctx.True(actors.All(actor => actor.Model != null), "all example actors, including the mutated child, build models");
+            }
+            finally
+            {
+                minimal.QueueFree();
+                await Frames(3);
+            }
+
+            var preview = GD.Load<PackedScene>("res://examples/preview_3d/CreaturePreview3D.tscn").Instantiate();
+            AddChild(preview);
+            try
+            {
+                await Frames(3);
+                var meshes = preview.GetNode("GeneratedCreature").GetChildren().OfType<MeshInstance3D>().ToArray();
+                ctx.True(meshes.Length > 0 && meshes.All(mesh => mesh.Mesh != null && mesh.Mesh.GetSurfaceCount() > 0),
+                    "3D example creates nonempty mesh surfaces");
+                ctx.True(preview.GetNode<Camera3D>("OrbitRig/PreviewCamera").Current, "preview camera is active");
+            }
+            finally
+            {
+                preview.QueueFree();
+                await Frames(3);
+            }
+        }
 
         private Task SamplesLoad(TestContext ctx)
         {

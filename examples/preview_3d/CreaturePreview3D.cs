@@ -99,10 +99,10 @@ namespace PixelCreatures.Examples
             panel.AddChild(margin);
 
             var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-            scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+            scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
             margin.AddChild(scroll);
             var column = new VBoxContainer();
-            column.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            column.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
             column.AddThemeConstantOverride("separation", 8);
             scroll.AddChild(column);
 
@@ -128,7 +128,7 @@ namespace PixelCreatures.Examples
 
             column.AddChild(SectionLabel("01  生物与 Seed"));
             column.AddChild(FieldLabel("生物家族"));
-            _familySelector = new OptionButton { CustomMinimumSize = new Vector2(0, 34), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            _familySelector = new OptionButton { CustomMinimumSize = new Vector2(0, 34), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             foreach (var family in CreatureRuntime.Registry.Families)
             {
                 _familyIds.Add(family.Id);
@@ -146,7 +146,7 @@ namespace PixelCreatures.Examples
             {
                 Text = "12345",
                 PlaceholderText = "输入 seed…",
-                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 CustomMinimumSize = new Vector2(0, 34),
                 ClearButtonEnabled = true,
             };
@@ -165,7 +165,7 @@ namespace PixelCreatures.Examples
             {
                 Text = "重新生成",
                 CustomMinimumSize = new Vector2(0, 38),
-                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             };
             generate.Pressed += GeneratePreview;
             column.AddChild(generate);
@@ -181,7 +181,7 @@ namespace PixelCreatures.Examples
             column.AddChild(_equipmentToggle);
 
             column.AddChild(FieldLabel("装备风格"));
-            _styleSelector = new OptionButton { CustomMinimumSize = new Vector2(0, 34), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            _styleSelector = new OptionButton { CustomMinimumSize = new Vector2(0, 34), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             foreach (var style in Styles) _styleSelector.AddItem(style.Label);
             _styleSelector.Selected = 0;
             _styleSelector.ItemSelected += _ => GeneratePreview();
@@ -211,7 +211,7 @@ namespace PixelCreatures.Examples
             {
                 Text = "导出 OBJ + MTL",
                 CustomMinimumSize = new Vector2(0, 38),
-                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 TooltipText = "保存当前静态 3D 网格到 user://exports/3d-preview/",
             };
             _exportButton.Pressed += ExportCurrentModel;

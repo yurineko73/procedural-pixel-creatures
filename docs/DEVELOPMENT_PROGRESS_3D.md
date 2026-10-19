@@ -9,12 +9,20 @@
 
 ## Status
 
+**Current verification (2026-10-19, Asia/Shanghai):** Godot 4.7.1 .NET is available locally.
+Fixed seven unqualified `SizeFlags` references in the Node3D preview controller that prevented
+the shared C# assembly from building, blocking both examples. `dotnet build` now succeeds;
+both standalone examples pass import/headless startup. Core harness: 19/19 passed.
+Godot quick suite: **31/31 passed**, including a new test that checks that both examples generate models/mesh surfaces.
+Visual inspection, orbit/UI interaction and manual OBJ export remain pending.
+The earlier statements below about unavailable tools and no test results are historical and superseded.
+
 | Milestone | Status | Verification |
 |---|---|---|
 | M0 Repository, branch and documents | complete | Branch and Drive folder created |
-| M1 Static OBJ + MTL geometry exporter | code committed, not run | Requires .NET 8 build + OBJ visual inspection |
-| M2 Independent style pack framework | code committed, not run | Modern / sci-fi / wasteland deterministic overlays |
-| M3 Godot 3D previewer | code committed, not run | Standalone scene with family/seed/style/equipment controls, orbit camera and OBJ export |
+| M1 Static OBJ + MTL geometry exporter | build/core tests passed; visual review pending | `export.obj_static_all_families` passed; inspect OBJ visually next |
+| M2 Independent style pack framework | deterministic tests passed; visual fit pending | `equipment.style_overlay_deterministic` passed |
+| M3 Godot 3D previewer | build/headless startup passed; visual/interaction review pending | Both examples start on Godot 4.7.1; regression checks model generation |
 | M4 Skeleton3D / skin / glTF / GLB | planned | Export + re-import + animation comparison |
 | M5 Continuous topology / material / fitted clothes | planned | Body geometry, UV and clipping validation |
 | M6 Performance, packaging and documentation | planned | Batch benchmark + release checks |
@@ -29,7 +37,7 @@
 
 ## Important constraints
 
-- **No claim of successful build/test yet.** The working environment does not have a .NET SDK or Godot executable available.
+- Local Godot 4.7.1 build and headless verification have passed. The automatic downloader still pins 4.5.2; use the local editor for this branch until that launcher is migrated and verified.
 - OBJ is static rest-pose only. No skinning, animation, UV, PBR, continuous SDF surface or GLB.
 - New equipment overlays share base rig and palette slots, are designed for 3D export and do not recompute pixel canvas.
 - Existing generator's default behaviour is not modified. All new features are opt-in.
@@ -37,10 +45,10 @@
 
 ## Immediate next steps
 
-1. Run `dotnet build tools/core_harness/CoreHarness.csproj` in .NET 8; fix any compiler errors.
-2. Run `dotnet run --project tools/core_harness/CoreHarness.csproj -- test out/test all 1`; inspect baseline regressions.
+1. Manually inspect both examples using F6 in Godot 4.7.1 .NET; verify family/style selection, orbit, zoom and OBJ export.
+2. Migrate the automatic launcher toolchain with verified archive hashes before claiming Start.cmd support for this branch.
 3. Run `dotnet run --project tools/core_harness/CoreHarness.csproj -- obj out/scifi biped 12345 scifi`; inspect generated OBJ in Blender; verify shoulders, head, hand attachments and intersections.
-4. Create Godot 3D preview scene, load material groups and expose style/seed controls.
+4. Review the existing 3D preview material groups and style/seed controls visually.
 5. Design GLB exporter and true skinning pipeline only after static mesh prototype passes geometry review.
 
 ## Continuation note
@@ -51,10 +59,22 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 ## M3 preview scene added (2026-10-19)
 
 - `examples/preview_3d/CreaturePreview3D.tscn` is a separate run-current-scene entry point; the existing `workshop/Main.tscn` remains the project start scene.
-- `examples/preview_3d/CreaturePreview3D.cs` owns seed/style/equipment UI and regeneration flow.\n- `examples/preview_3d/PreviewStageBuilder.cs` owns environment, lighting, ground grid, pedestal and orbit camera construction.\n- `examples/preview_3d/ObjPreviewMeshBuilder.cs` parses the OBJ payload into indexed Godot surfaces and applies the sampled palette by material slot.
+- `examples/preview_3d/CreaturePreview3D.cs` owns seed/style/equipment UI and regeneration flow.
+- `examples/preview_3d/PreviewStageBuilder.cs` owns environment, lighting, ground grid, pedestal and orbit camera construction.
+- `examples/preview_3d/ObjPreviewMeshBuilder.cs` parses the OBJ payload into indexed Godot surfaces and applies the sampled palette by material slot.
 - UI includes family selector, text/numeric seed + random seed, regenerate, equipment toggle, Fantasy/Modern/Sci-Fi/Wasteland style selector, reset view and OBJ/MTL export.
 - Modern/Sci-Fi/Wasteland use the separate biped equipment packs; other families fall back to Fantasy.
 - Live meshes use the sampled palette by material slot. OBJ/MTL exports are saved to `user://exports/3d-preview/`.
 - `examples/preview_3d/README.md` documents running and limitations.
 
-**Validation remains pending:** neither Godot nor .NET SDK is installed in the current execution environment, and no GitHub Actions run/status was returned for the branch. Do not mark M3 complete until C# import/build, headless checks and visual inspection in Godot pass.
+**Historical validation note (superseded on 2026-10-19):** tools were unavailable when this prototype was added. Local build/headless results now appear at the top; visual inspection and CI verification remain pending.
+
+## Examples build repair (2026-10-19)
+
+- Branch: `feature/3d-modular-equipment`; commit: this repair commit (use `git log -1` after checkout). Local commit only; no push or Drive mirror update in this bug-fix task.
+- Added root `AGENTS.md`, adapted from side-scrollerRPG with this repository's paths, milestone record and Drive progress mirror.
+- Replaced `SizeFlags.ExpandFill` with `Control.SizeFlags.ExpandFill`: the controller derives from `Node3D`, so Control's nested enum is not inherited.
+- Retained the existing local 4.7.1 project upgrade; unrelated minimal-example formatting and the `.csproj.old` backup are left outside the repair commit.
+- Added `runtime.examples_build_models`: checks five actors (including generated serpent/offspring), nonempty preview surfaces and active camera.
+- Validation: `dotnet build`; `dotnet run -c Release --project tools/core_harness/CoreHarness.csproj -- test reports all 10`; Godot console `--headless --path . --editor --import --quit`; each example `--headless --audio-driver Dummy --path . <scene> --quit-after 180 --max-fps 60`; Godot `--headless --audio-driver Dummy --path . -- --self-test --quick --report=res://reports/self_test_report.json`.
+- Two existing `SplitContainer.SplitOffset` deprecation warnings remain in `workshop/Main.cs`; they do not block builds. Headless execution does not validate rendered appearance or manual interactions.

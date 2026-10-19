@@ -4,7 +4,7 @@ This is a standalone scene. It does not replace the existing workshop start scen
 
 ## Run
 
-1. Open the repository with **Godot 4.5.2 .NET** (the project currently targets Godot .NET 4.5.2 and .NET 8).
+1. Open the repository with **Godot 4.7.1 .NET** (the current branch targets Godot.NET.Sdk 4.7.1 and .NET 8).
 2. In the FileSystem dock, open `examples/preview_3d/CreaturePreview3D.tscn`.
 3. Run the current scene with **F6**.
 
