@@ -162,10 +162,18 @@ namespace PixelCreatures.Examples
             var randomSeed = new Button { Text = "随机身体", CustomMinimumSize = new Vector2(76, 34), TooltipText = "只改变身体 Seed" };
             randomSeed.Pressed += () =>
             {
-                _seedInput.Text = Math.Max(1u, GD.Randi()).ToString(CultureInfo.InvariantCulture);
+                _seedInput.Text = NextRandomSeed().ToString(CultureInfo.InvariantCulture);
                 GeneratePreview();
             };
             seedRow.AddChild(randomSeed);
+            var randomAll = new Button { Text = "全部随机", CustomMinimumSize = new Vector2(68, 34), TooltipText = "同时重新生成身体与整套装备" };
+            randomAll.Pressed += () =>
+            {
+                _seedInput.Text = NextRandomSeed().ToString(CultureInfo.InvariantCulture);
+                _gearSeedInput.Text = NextRandomSeed().ToString(CultureInfo.InvariantCulture);
+                GeneratePreview();
+            };
+            seedRow.AddChild(randomAll);
             column.AddChild(seedRow);
 
             var generate = new Button
