@@ -108,7 +108,7 @@ namespace PixelCreatures.Examples
             _toonShader = new Shader
             {
                 Code = @"shader_type spatial;
-render_mode specular_disabled;
+render_mode specular_disabled, cull_disabled, depth_draw_opaque;
 
 uniform vec4 ramp_outline : source_color = vec4(0.04, 0.03, 0.05, 1.0);
 uniform vec4 ramp_deep : source_color = vec4(0.12, 0.10, 0.15, 1.0);
