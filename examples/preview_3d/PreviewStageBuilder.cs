@@ -50,7 +50,7 @@ namespace PixelCreatures.Examples
                     AlbedoColor = new Color(0.075f, 0.09f, 0.12f),
                     Roughness = 0.92f,
                 },
-                Position = new Vector3(0, -0.19f, 0),
+                Position = new Vector3(0, -0.16f, 0),
             });
 
             var gridMaterial = new StandardMaterial3D
@@ -64,10 +64,10 @@ namespace PixelCreatures.Examples
             for (int i = -12; i <= 12; i++)
             {
                 float p = i * 0.75f;
-                gridMesh.SurfaceAddVertex(new Vector3(p, -0.185f, -9));
-                gridMesh.SurfaceAddVertex(new Vector3(p, -0.185f, 9));
-                gridMesh.SurfaceAddVertex(new Vector3(-9, -0.185f, p));
-                gridMesh.SurfaceAddVertex(new Vector3(9, -0.185f, p));
+                gridMesh.SurfaceAddVertex(new Vector3(p, -0.155f, -9));
+                gridMesh.SurfaceAddVertex(new Vector3(p, -0.155f, 9));
+                gridMesh.SurfaceAddVertex(new Vector3(-9, -0.155f, p));
+                gridMesh.SurfaceAddVertex(new Vector3(9, -0.155f, p));
             }
             gridMesh.SurfaceEnd();
             owner.AddChild(new MeshInstance3D { Name = "PreviewGrid", Mesh = gridMesh });
