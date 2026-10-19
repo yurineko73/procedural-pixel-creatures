@@ -14,7 +14,6 @@ using PixelCreatures.Core.Export;
 using PixelCreatures.Core.Genetics;
 using PixelCreatures.Core.Palettes;
 using PixelCreatures.Runtime;
-using PixelCreatures.Workshop;
 
 namespace PixelCreatures.Examples
 {
@@ -164,7 +163,7 @@ namespace PixelCreatures.Examples
             AddChild(layer);
             var root = new Control { Name = "PreviewOverlay", MouseFilter = Control.MouseFilterEnum.Ignore };
             root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            root.Theme = UiKit.CreateTheme();
+            root.Theme = CreatePreviewTheme();
             layer.AddChild(root);
 
             var panel = new PanelContainer { Name = "ControlsPanel" };
@@ -363,6 +362,36 @@ namespace PixelCreatures.Examples
             viewHint.AddThemeFontSizeOverride("font_size", 10);
             viewHint.AddThemeColorOverride("font_color", new Color(0.65f, 0.69f, 0.77f));
             root.AddChild(viewHint);
+        }
+
+        private static Theme CreatePreviewTheme()
+        {
+            var theme = new Theme { DefaultFontSize = 14 };
+            theme.SetColor("font_color", "Label", new Color(0.88f, 0.89f, 0.92f));
+            theme.SetColor("font_color", "Button", new Color(0.9f, 0.91f, 0.94f));
+            theme.SetColor("font_color", "LineEdit", new Color(0.92f, 0.93f, 0.95f));
+            var button = new StyleBoxFlat
+            {
+                BgColor = new Color(0.15f, 0.18f, 0.23f),
+                BorderColor = new Color(0.28f, 0.33f, 0.41f),
+                BorderWidthLeft = 1, BorderWidthRight = 1,
+                BorderWidthTop = 1, BorderWidthBottom = 1,
+                CornerRadiusTopLeft = 5, CornerRadiusTopRight = 5,
+                CornerRadiusBottomLeft = 5, CornerRadiusBottomRight = 5,
+                ContentMarginLeft = 8, ContentMarginRight = 8,
+                ContentMarginTop = 5, ContentMarginBottom = 5,
+            };
+            theme.SetStylebox("normal", "Button", button);
+            theme.SetStylebox("hover", "Button", new StyleBoxFlat
+            {
+                BgColor = new Color(0.21f, 0.25f, 0.31f),
+                BorderColor = new Color(0.75f, 0.59f, 0.34f),
+                BorderWidthLeft = 1, BorderWidthRight = 1,
+                BorderWidthTop = 1, BorderWidthBottom = 1,
+                CornerRadiusTopLeft = 5, CornerRadiusTopRight = 5,
+                CornerRadiusBottomLeft = 5, CornerRadiusBottomRight = 5,
+            });
+            return theme;
         }
 
         private static Label SectionLabel(string text)
