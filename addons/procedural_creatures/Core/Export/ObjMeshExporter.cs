@@ -261,7 +261,13 @@ namespace PixelCreatures.Core.Export
                 if (Vec3.Cross(b - a, c - a).LengthSquared < 1e-12) return;
                 int ia = Vertex(a), ib = Vertex(b), ic = Vertex(c);
                 Face(ia, ib, ic);
-                if (twoSided) Face(ic, ib, ia);
+                if (twoSided)
+                {
+                    // Give the reverse face its own vertices. Sharing the same three indices
+                    // makes generated smooth normals cancel to zero in indexed mesh consumers.
+                    int reverseA = Vertex(a), reverseB = Vertex(b), reverseC = Vertex(c);
+                    Face(reverseC, reverseB, reverseA);
+                }
             }
 
             public void Ellipsoid(Func<Vec3, Vec3> transform, Vec3 radii, int sides, int rings)
