@@ -42,6 +42,7 @@ namespace PixelCreatures.Tests
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("equipment.style_overlay_deterministic", ctx => EquipmentStyleSmoke(ctx, registry));
             r.Run("equipment.slot_seeds_are_independent", ctx => EquipmentSlotIndependence(ctx, registry));
+            r.Run("equipment.native_gear_slot_seeds_are_independent", ctx => NativeGearSlotIndependence(ctx, registry));
         }
 
         // ------------------------------------------------------------------ math & random
@@ -123,6 +124,44 @@ namespace PixelCreatures.Tests
             ctx.True(AnatomyHash(baseline) == AnatomyHash(sameAgain), "same per-slot seeds must be deterministic");
             ctx.True(AnatomyHash(original) == AnatomyHash(family.BuildAnatomy(genome, reg)),
                 "equipment generation must not mutate source anatomy");
+        }
+
+        private static void NativeGearSlotIndependence(TestContext ctx, CreatureRegistry reg)
+        {
+            var family = reg.Families.First(f => f.Id == "biped");
+            var body = GenomeFactory.Sample(family, 887766UL);
+            const ulong masterSeed = 123456789UL;
+            var seeds = EquipmentSeedSet.FromMaster(masterSeed);
+            var coloredBody = NativeGearRandomizer.ApplyEquipmentColors(body, family,
+                StableHash.Derive(masterSeed, "equipment.colors"));
+            var baseline = NativeGearRandomizer.ApplyNativeGearGenes(coloredBody, family, masterSeed, seeds);
+
+            string originalWeapon = GenomeFactory.Sample(family, seeds.WeaponSeed).GetChoice("gear.weapon");
+            ulong alternateWeaponSeed = seeds.WeaponSeed;
+            bool foundDifferentWeapon = false;
+            for (int i = 1; i <= 128; i++)
+            {
+                ulong candidate = StableHash.Derive(masterSeed, "test.native.weapon", i);
+                if (GenomeFactory.Sample(family, candidate).GetChoice("gear.weapon") == originalWeapon) continue;
+                alternateWeaponSeed = candidate;
+                foundDifferentWeapon = true;
+                break;
+            }
+            ctx.True(foundDifferentWeapon, "test setup could not find a different deterministic weapon sample");
+
+            var weaponOnly = new EquipmentSeedSet(seeds.OutfitSeed, alternateWeaponSeed,
+                seeds.HeadgearSeed, seeds.AccessorySeed);
+            var changed = NativeGearRandomizer.ApplyNativeGearGenes(coloredBody, family, masterSeed, weaponOnly);
+            ctx.Equal(baseline.Get("gear.outfit"), changed.Get("gear.outfit"), "weapon reroll changed outfit gene");
+            ctx.Equal(baseline.Get("gear.helmet"), changed.Get("gear.helmet"), "weapon reroll changed headgear gene");
+            ctx.Equal(baseline.Get("gear.shield"), changed.Get("gear.shield"), "weapon reroll changed shield gene");
+            ctx.Equal(baseline.Get("gear.pauldrons"), changed.Get("gear.pauldrons"), "weapon reroll changed pauldron gene");
+            ctx.Equal(baseline.Get("gear.size"), changed.Get("gear.size"), "slot reroll changed shared gear size");
+            ctx.True(baseline.GetChoice("gear.weapon") != changed.GetChoice("gear.weapon"),
+                "weapon reroll did not change native weapon gene");
+            ctx.Equal(body.Get("form"), changed.Get("form"), "gear reroll changed body archetype");
+            ctx.Equal(body.Get("head.size"), changed.Get("head.size"), "gear reroll changed body head size");
+            ctx.Equal(coloredBody.Get("color.clothHue"), changed.Get("color.clothHue"), "weapon reroll changed gear colour");
         }
 
         private static void DeterministicMath(TestContext ctx)
