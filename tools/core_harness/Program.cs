@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using PixelCreatures.Core;
+using PixelCreatures.Core.Equipment;
+using PixelCreatures.Core.Export;
+using PixelCreatures.Core.Genetics;
 
 namespace PixelCreatures.Harness
 {
@@ -30,6 +33,31 @@ namespace PixelCreatures.Harness
                     Console.WriteLine(runner.Summary());
                     return runner.Failed == 0 ? 0 : 1;
                 }
+                case "obj":
+                {
+                    // obj <outDir> [family=biped] [seed=42] [style=fantasy|modern|scifi|wasteland]
+                    string familyId = args.Length > 2 ? args[2] : "biped";
+                    ulong seed = args.Length > 3 ? ulong.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 42UL;
+                    string style = args.Length > 4 ? args[4] : "fantasy";
+                    var reg = Program.CreateRegistry();
+                    var family = reg.GetFamily(familyId);
+                    var genome = GenomeFactory.Sample(family, seed);
+                    if (style != "fantasy")
+                    {
+                        if (familyId != "biped") throw new ArgumentException("Equipment preview currently requires biped family.");
+                        genome = genome.With("gear.weapon", 0).With("gear.outfit", 0)
+                            .With("gear.helmet", 0).With("gear.shield", 0).With("gear.pauldrons", 0);
+                    }
+                    var anatomy = family.BuildAnatomy(genome, reg);
+                    var equipped = EquipmentGenerator.Apply(anatomy, style, seed);
+                    var mesh = ObjMeshExporter.Export(equipped);
+                    Directory.CreateDirectory(outDir);
+                    File.WriteAllText(Path.Combine(outDir, "creature.obj"), mesh.ObjText);
+                    File.WriteAllText(Path.Combine(outDir, "creature.mtl"), mesh.MtlText);
+                    Console.WriteLine($"OBJ ready: {mesh.Vertices} vertices, {mesh.Triangles} triangles; {style} / {familyId} / {seed}");
+                    Console.WriteLine(Path.Combine(outDir, "creature.obj"));
+                    return 0;
+                }
                 case "goldens":
                 {
                     var rng = new Rng(42);
@@ -46,6 +74,7 @@ namespace PixelCreatures.Harness
                 default:
                     Console.WriteLine("CoreHarness test <outdir> [filter|all] [seedsPerFamily]");
                     Console.WriteLine("CoreHarness goldens  (print deterministic baseline values)");
+                    Console.WriteLine("CoreHarness obj <outDir> [family=biped] [seed=42] [style=fantasy|modern|scifi|wasteland]");
                     return command == "help" ? 0 : 1;
             }
         }
