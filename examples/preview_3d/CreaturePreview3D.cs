@@ -457,34 +457,6 @@ namespace PixelCreatures.Examples
                 $"头部 {Short(_equipmentSeeds.HeadgearSeed)} · 配件 {Short(_equipmentSeeds.AccessorySeed)}";
         }
 
-        private CreatureGenome ApplyGearColors(CreatureGenome genome)
-        {
-            var colors = CreatureRuntime.Sample("biped", _gearColorSeed);
-            foreach (string gene in new[] { "color.clothHue", "color.clothSaturation", "color.clothValue", "color.metal" })
-                if (genome.Schema.Contains(gene) && colors.Schema.Contains(gene))
-                    genome = genome.With(gene, colors.Get(gene));
-            return genome;
-        }
-
-        private CreatureGenome ApplyNativeEquipmentGenes(CreatureGenome genome)
-        {
-            var outfit = CreatureRuntime.Sample("biped", _equipmentSeeds.OutfitSeed);
-            var weapon = CreatureRuntime.Sample("biped", _equipmentSeeds.WeaponSeed);
-            var headgear = CreatureRuntime.Sample("biped", _equipmentSeeds.HeadgearSeed);
-            var accessory = CreatureRuntime.Sample("biped", _equipmentSeeds.AccessorySeed);
-            var master = CreatureRuntime.Sample("biped", _masterGearSeed);
-
-            genome = genome
-                .With("gear.outfit", outfit.Get("gear.outfit"))
-                .With("gear.weapon", weapon.Get("gear.weapon"))
-                .With("gear.helmet", headgear.Get("gear.helmet"))
-                .With("gear.shield", accessory.Get("gear.shield"))
-                .With("gear.pauldrons", accessory.Get("gear.pauldrons"))
-                // Legacy fantasy gear shares one size gene. Only the full gear seed changes it.
-                .With("gear.size", master.Get("gear.size"));
-            return genome;
-        }
-
         private void GeneratePreview()
         {
             if (_familySelector == null || _styleSelector == null || _equipmentToggle == null) return;
@@ -501,12 +473,13 @@ namespace PixelCreatures.Examples
                 CreatureGenome genome = CreatureRuntime.Sample(familyId, seed);
                 if (isBiped)
                 {
-                    // Equipment colours are tied to the gear seed, not the body seed.
-                    genome = ApplyGearColors(genome);
+                    ICreatureFamily bipedFamily = CreatureRuntime.Registry.GetFamily("biped");
+                    // Equipment colours and native gear genes are routed through a reusable Core module.
+                    genome = NativeGearRandomizer.ApplyEquipmentColors(genome, bipedFamily, _gearColorSeed);
                     if (!showEquipment || !string.Equals(style, "fantasy", StringComparison.OrdinalIgnoreCase))
                         genome = DisableNativeGear(genome);
                     else
-                        genome = ApplyNativeEquipmentGenes(genome);
+                        genome = NativeGearRandomizer.ApplyNativeGearGenes(genome, bipedFamily, _masterGearSeed, _equipmentSeeds);
                 }
 
                 CreatureModel model = CreatureRuntime.Build(genome);
