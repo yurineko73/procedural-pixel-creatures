@@ -44,3 +44,10 @@ If the preview does not open, first run the project's normal C# import/build and
 ## Rendering repair note (2026-10-19)
 
 The preview shader's `light()` processor must not use an early `return`; lighting is now guarded with an `if` block. Two-sided triangle backfaces are exported with separate vertices so generated normals do not cancel, and the preview uses back-face culling to avoid z-fighting between coincident front/back faces. These fixes are committed but still require a Godot 4.7.1 rebuild and visual verification.
+
+
+## Follow-up mesh and shading changes (2026-10-19)
+
+Organic Primary/Secondary ellipsoids and tapered segments are now extracted as a shared signed-distance outer skin; equipment, hard/faceted pieces, membranes/triangles, and interior details stay separate. This prevents the preview from displaying the inside shells of every overlapping body primitive. The toon shader also preserves the base material hue more consistently and allows ambient fill so shadowed surfaces do not collapse to black. Frustum caps use separate vertices from side rings for clean normals.
+
+These changes are committed but require a Godot 4.7.1 rebuild and visual verification. The preview is still a static mesh, not a rigged or animated character.
