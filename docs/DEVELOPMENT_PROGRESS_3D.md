@@ -1,6 +1,6 @@
 # 3D / equipment extension progress
 
-**Updated:** 2026-10-19  
+**Updated:** 2026-10-19 (gear isolation + face-detail pass)  
 **Repository:** https://github.com/yurineko73/procedural-pixel-creatures  
 **Branch:** `feature/3d-modular-equipment`  
 **Google Drive folder:** https://drive.google.com/drive/folders/1mATA3Xa9aJXC5EdDJ2_sOOrug1BSVuLO  
@@ -20,9 +20,9 @@ The earlier statements below about unavailable tools and no test results are his
 | Milestone | Status | Verification |
 |---|---|---|
 | M0 Repository, branch and documents | complete | Branch and Drive folder created |
-| M1 Static OBJ + MTL geometry exporter | build/core tests passed; visual review pending | `export.obj_static_all_families` passed; inspect OBJ visually next |
-| M2 Independent style pack framework | deterministic tests passed; visual fit pending | `equipment.style_overlay_deterministic` passed |
-| M3 Godot 3D previewer | build/headless startup passed; visual/interaction review pending | Both examples start on Godot 4.7.1; regression checks model generation |
+| M1 Static OBJ + MTL geometry exporter | earlier baseline passed; latest face-feature export needs re-test | rerun `export.obj_static_all_families`; inspect eyes/material groups in Blender |
+| M2 Independent style pack framework | earlier baseline passed; latest per-slot seed changes need re-test | rerun `equipment.style_overlay_deterministic` and `equipment.slot_seeds_are_independent` |
+| M3 Godot 3D previewer | prior baseline passed; latest controls/shader changes need re-test | rebuild, headless startup, verify slot rerolls and toon-shaded face details visually |
 | M4 Skeleton3D / skin / glTF / GLB | planned | Export + re-import + animation comparison |
 | M5 Continuous topology / material / fitted clothes | planned | Body geometry, UV and clipping validation |
 | M6 Performance, packaging and documentation | planned | Batch benchmark + release checks |
@@ -78,3 +78,24 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 - Added `runtime.examples_build_models`: checks five actors (including generated serpent/offspring), nonempty preview surfaces and active camera.
 - Validation: `dotnet build`; `dotnet run -c Release --project tools/core_harness/CoreHarness.csproj -- test reports all 10`; Godot console `--headless --path . --editor --import --quit`; each example `--headless --audio-driver Dummy --path . <scene> --quit-after 180 --max-fps 60`; Godot `--headless --audio-driver Dummy --path . -- --self-test --quick --report=res://reports/self_test_report.json`.
 - Two existing `SplitContainer.SplitOffset` deprecation warnings remain in `workshop/Main.cs`; they do not block builds. Headless execution does not validate rendered appearance or manual interactions.
+
+
+## Latest implementation delta: independent equipment + face detail (2026-10-19)
+
+**Status: code committed, not yet recompiled or visually verified after these changes.**
+
+- EquipmentSeedSet adds four stable random streams: Outfit, Weapon, Headgear and Accessory. Existing EquipmentGenerator.Apply(source, style, ulong) remains as a compatibility overload.
+- Modern / Sci-Fi / Wasteland packs assign each random draw to a named slot. Headgear is now a seeded variant in all three styles; backpack/radio, shoulders/scrap plates and weapon props use their own slots.
+- The preview UI now has separate Body Seed and Equipment Seed controls; the master gear seed can be rerolled without changing the body. Individual Random Outfit / Weapon / Headgear / Accessory buttons change only that slot's seed and show the active slot seeds.
+- Fantasy native gear is sampled from independent slot seeds (gear.outfit, gear.weapon, gear.helmet, gear.shield, gear.pauldrons). Its legacy shared gear.size remains controlled by the master gear seed. Cloth/metal colour genes are also tied to the master equipment seed.
+- OBJ now exports the separately stored CreatureAnatomy.Features: eye sockets, sclera, iris/pupil, highlights, nostrils and spots, each with named material groups.
+- The Godot preview now maps the palette's six shades through a stepped toon shader rather than using only each slot's base colour. Feature material names map to dark sockets/pupils, sclera, iris, highlights and glow.
+- Tests were added for facial-feature OBJ output and for verifying that changing the weapon seed does not change the modern jacket geometry while it does change the weapon shape.
+
+### Required revalidation before merge
+
+1. Run dotnet build for the Godot C# project and dotnet build tools/core_harness/CoreHarness.csproj.
+2. Run the full core harness, including export.obj_static_all_families, equipment.style_overlay_deterministic and equipment.slot_seeds_are_independent.
+3. Run Godot editor import and both existing headless example checks / quick suite.
+4. In the preview, confirm eyes/pupils are visible from multiple angles, the toon ramp remains readable, body seed leaves gear shapes stable, and each slot button leaves other categories unchanged.
+5. Export OBJ + MTL and inspect in Blender. If tests fail, fix before updating status to validated.
