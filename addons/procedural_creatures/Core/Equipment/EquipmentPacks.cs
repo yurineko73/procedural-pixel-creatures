@@ -108,7 +108,7 @@ namespace PixelCreatures.Core.Equipment
                 throw new ArgumentException("Equipment requires finite positive ellipsoid dimensions.");
             int index = _groups.Count;
             string tag = "equipment." + _style + "." + name;
-            _groups.Add(new PartGroup(index, tag, 0.3, 0, GroupFlags.None, 0.7));
+            _groups.Add(new PartGroup(tag, 0.3, 0, GroupFlags.None, 0.7) { Index = index });
             _shapes.Add(new PrimitiveDef
             {
                 Kind = PrimKind.Ellipsoid, Group = index, BoneA = bone,
@@ -125,7 +125,7 @@ namespace PixelCreatures.Core.Equipment
                 throw new ArgumentException("Invalid equipment rod.");
             int index = _groups.Count;
             string tag = "equipment." + _style + "." + name;
-            _groups.Add(new PartGroup(index, tag, 0.3, 0, GroupFlags.None, 0.7));
+            _groups.Add(new PartGroup(tag, 0.3, 0, GroupFlags.None, 0.7) { Index = index });
             _shapes.Add(new PrimitiveDef
             {
                 Kind = PrimKind.RoundCone, Group = index, BoneA = bone, BoneB = bone,
