@@ -93,3 +93,15 @@ Do not start by modifying `BipedFamily` or original gene schema. Continue from t
 3. Run Godot editor import and both existing headless example checks / quick suite.
 4. In the preview, confirm eyes/pupils are visible from multiple angles, the toon ramp remains readable, body seed leaves gear shapes stable, and each slot button leaves other categories unchanged.
 5. Export OBJ + MTL and inspect in Blender. If tests fail, fix before updating status to validated.
+
+## Preview rendering repair from visual report (2026-10-19)
+
+**Status: source fix committed; Godot recompilation and visual recheck are still required.**
+
+- The screenshot showed Godot rejecting the custom shader because `return;` was used in the `light()` processor. Replaced the early return with a guarded lighting block, so the shader uses valid Godot spatial-light syntax.
+- Removed `cull_disabled` from the preview shader. The OBJ exporter intentionally emits reverse-wound faces for two-sided triangles; rendering both copies with culling disabled could cause coplanar depth fighting.
+- Fixed `MeshEmitter.Triangle`: the reverse-wound face now gets its own three OBJ vertices instead of sharing the front face's vertex indices. The previous shared indices caused generated vertex normals to average opposite directions and cancel, which can produce pale/fragmented-looking triangles.
+- Reduced the custom toon ramp's direct-light multiplier to `0.62` so the two preview lights are less likely to wash the palette toward white.
+- Added a CoreHarness regression assertion for a two-sided triangle object containing six independent vertices and two faces.
+
+**Revalidation:** rebuild the Godot C# project, reopen `CreaturePreview3D.tscn`, and confirm there is no shader compilation error. Check that the body and equipment show palette colours, two-sided triangle pieces no longer flicker or form white shards, and the eye materials remain visible. Primitive intersections are still an architectural limitation of this static-mesh prototype; if obvious gaps remain after the shader/normal fix, the next task is to improve the actual surface construction rather than only adjusting lighting.
