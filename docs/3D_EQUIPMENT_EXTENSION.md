@@ -7,10 +7,10 @@
 - `examples/preview_3d/CreaturePreview3D.tscn`: standalone Godot 3D preview scene; does not replace `workshop/Main.tscn`.
 - `examples/preview_3d/CreaturePreview3D.cs`: seed, family, equipment toggle, style selection and export controller.
 - `examples/preview_3d/PreviewStageBuilder.cs`: reusable lighting / ground / pedestal / orbit-camera stage.
-- `examples/preview_3d/ObjPreviewMeshBuilder.cs`: OBJ-to-Godot indexed surfaces and palette material assignment.
+- `examples/preview_3d/ObjPreviewMeshBuilder.cs`: OBJ-to-Godot indexed surfaces, face-feature material mapping and a six-level palette-ramp toon shader.
 
-- `Core/Export/ObjMeshExporter.cs`: engine-independent **rest-pose OBJ + MTL** output from `CreatureAnatomy` three-dimensional primitive definitions (ellipsoids, round cones, triangles), with deterministic vertex order, material-slot grouping and unit scaling.
-- `Core/Equipment/EquipmentPacks.cs`: a separate registry and deterministic `EquipmentGenerator.Apply` overlay. Bundled styles: `modern` (jacket, optional vest/backpack/cap, fictional sidearm prop), `scifi` (breastplate, light core, shoulders, helmet, fictional energy blaster prop), and `wasteland` (coat, randomized scrap plates, tool prop).
+- `Core/Export/ObjMeshExporter.cs`: engine-independent **rest-pose OBJ + MTL** output from `CreatureAnatomy` primitives (ellipsoids, round cones, triangles) plus separately stored facial features (eye sockets, sclera, iris/pupil, highlights, nostrils and spots), with deterministic vertex order, material-slot grouping and unit scaling.
+- `Core/Equipment/EquipmentPacks.cs`: a separate registry and deterministic `EquipmentGenerator.Apply` overlay. `EquipmentSeedSet` exposes independent `Outfit`, `Weapon`, `Headgear` and `Accessory` streams. Bundled styles: `modern` (jacket/vest, accessories, multiple headgear variants, fictional sidearm prop), `scifi` (breastplate, light core, shoulders, variable helmet, fictional energy blaster prop), and `wasteland` (coat, randomized scrap plates, bandana/scrap helmet/respirator, tool prop).
 - `tools/core_harness` command `obj`: export an existing creature, optionally with additional geometry from a style pack.
 - Engine-independent tests for deterministic OBJ generation, nonempty meshes, equipment generation, and no source anatomy mutation.
 
@@ -68,8 +68,10 @@ Register more styles by implementing `IEquipmentStylePack` and calling `Equipmen
 3. Generated OBJ does not carry original pixel patterns or genome colours. The MTL is a **placeholder neutral palette**.
 4. Overlays attach shapes to **existing** humanoid bones; they do not include cloth simulation, collision checking, two-hand grips, or game combat logic. The three new packs currently require a biped rig.
 5. The overlay reuses the original pixel canvas bounds intentionally and is **for 3D export only**. Do not pass the decorated anatomy to the existing pixel renderer without recomputing canvas bounds; it can clip.
-6. Existing fantasy dress/weapon shapes are still created when the sampled original genome has those genes. The CLI suppresses them for themed previews. The independent API caller must do the same when desired.
-7. The code has not yet been validated by executing the .NET/Godot test runner in this environment; local build/test verification is required before merging.
+6. Fantasy gear uses the legacy shared `gear.size` gene; per-slot random buttons reroll category choices independently, while the shared scale changes only with the master equipment seed.
+7. The toon shader approximates the old palette ramp, but does not reproduce the original 2D renderer's pixel contours, surface patterns, soft unions, contact shading or animation expressions.
+8. Existing fantasy dress/weapon shapes are still created when the sampled original genome has those genes. The CLI suppresses them for themed previews. The independent API caller must do the same when desired.
+9. The code has not yet been validated by executing the .NET/Godot test runner in this environment; local build/test verification is required before merging.
 
 ## Next work
 
