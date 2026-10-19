@@ -41,6 +41,7 @@ namespace PixelCreatures.Examples
         private string _lastObj = string.Empty;
         private string _lastMtl = string.Empty;
         private string _lastExportSummary = string.Empty;
+        private string _compatibilityNote = string.Empty;
         private bool _dragging;
         private float _yaw = 0.58f;
         private float _pitch = 0.12f;
@@ -135,11 +136,7 @@ namespace PixelCreatures.Examples
             }
             int bipedIndex = _familyIds.FindIndex(id => string.Equals(id, "biped", StringComparison.OrdinalIgnoreCase));
             _familySelector.Selected = bipedIndex >= 0 ? bipedIndex : 0;
-            _familySelector.ItemSelected += _ =>
-            {
-                EnsureStyleCompatibility();
-                GeneratePreview();
-            };
+            _familySelector.ItemSelected += _ => GeneratePreview();
             column.AddChild(_familySelector);
 
             column.AddChild(FieldLabel("Seed（数字或任意文本）"));
@@ -187,11 +184,7 @@ namespace PixelCreatures.Examples
             _styleSelector = new OptionButton { CustomMinimumSize = new Vector2(0, 34), SizeFlagsHorizontal = SizeFlags.ExpandFill };
             foreach (var style in Styles) _styleSelector.AddItem(style.Label);
             _styleSelector.Selected = 0;
-            _styleSelector.ItemSelected += _ =>
-            {
-                EnsureStyleCompatibility();
-                GeneratePreview();
-            };
+            _styleSelector.ItemSelected += _ => GeneratePreview();
             column.AddChild(_styleSelector);
 
             var styleHint = new Label
@@ -329,11 +322,12 @@ namespace PixelCreatures.Examples
 
         private void EnsureStyleCompatibility()
         {
+            _compatibilityNote = string.Empty;
             if (!string.Equals(SelectedFamilyId, "biped", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(SelectedStyleId, "fantasy", StringComparison.OrdinalIgnoreCase))
             {
                 _styleSelector.Selected = 0;
-                _status.Text = "现代 / 科幻 / 废土装备包目前只适配 biped；已切回原生奇幻风格。";
+                _compatibilityNote = "现代 / 科幻 / 废土装备包目前只适配 biped；已切回原生奇幻风格。";
             }
         }
 
@@ -380,7 +374,8 @@ namespace PixelCreatures.Examples
                     $"家族：{familyId}\n风格：{Styles[Math.Clamp(_styleSelector.Selected, 0, Styles.Length - 1)].Label}\n" +
                     $"装备：{(showEquipment ? "开启" : "关闭")}\n" +
                     $"网格：{result.Vertices:N0} 顶点 · {result.Triangles:N0} 三角形\n" +
-                    $"模型键：{anatomy.AnatomyKey:X16}";
+                    $"模型键：{anatomy.AnatomyKey:X16}" +
+                    (_compatibilityNote.Length > 0 ? $"\n\n{_compatibilityNote}" : string.Empty);
                 _exportButton.Disabled = false;
             }
             catch (Exception ex)
