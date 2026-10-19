@@ -40,6 +40,7 @@ namespace PixelCreatures.Tests
             r.Run("motion.turning_in_place_reorients_body", ctx => TurnInPlace(ctx, registry, factory));
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
+            r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("equipment.style_overlay_deterministic", ctx => EquipmentStyleSmoke(ctx, registry));
             r.Run("equipment.slot_seeds_are_independent", ctx => EquipmentSlotIndependence(ctx, registry));
@@ -73,6 +74,30 @@ namespace PixelCreatures.Tests
                 ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                     !first.ObjText.Contains("Infinity", StringComparison.Ordinal), family.Id + ": nonfinite OBJ values");
             }
+        }
+
+        private static void ObjOrganicUnion(TestContext ctx)
+        {
+            var builder = new AnatomyBuilder("organic_union_test", 1);
+            int root = builder.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int skin = builder.Group("body", 1.2);
+            builder.Ellipsoid(skin, root, new Vec3(-1, 0, 0), new Vec3(3, 4, 3), MaterialSlot.Primary);
+            builder.Ellipsoid(skin, root, new Vec3(1, 0, 0), new Vec3(3, 4, 3), MaterialSlot.Secondary);
+            int gear = builder.Group("gear.helmet", 0.2);
+            builder.Ellipsoid(gear, root, new Vec3(0, 5, 0), new Vec3(1, 1, 1), MaterialSlot.Cloth);
+
+            var anatomy = builder.Build(1);
+            var result = ObjMeshExporter.Export(anatomy, 8, 4);
+            ctx.True(result.ObjText.Contains("o organic_body_Primary", StringComparison.Ordinal),
+                "organic primary surfaces should be emitted as one fused outer skin");
+            ctx.True(result.ObjText.Contains("o organic_body_Secondary", StringComparison.Ordinal),
+                "organic secondary surfaces should preserve their material regions");
+            ctx.True(!result.ObjText.Contains("o primitive_0", StringComparison.Ordinal) &&
+                !result.ObjText.Contains("o primitive_1", StringComparison.Ordinal),
+                "unified organic primitives must not also be exported as overlapping closed shells");
+            ctx.True(result.ObjText.Contains("o primitive_2", StringComparison.Ordinal),
+                "gear primitives must remain separate from the organic skin union");
+            ctx.True(result.Triangles > 0, "organic union must generate a nonempty surface");
         }
 
         private static void ObjTwoSidedTriangleNormals(TestContext ctx)
