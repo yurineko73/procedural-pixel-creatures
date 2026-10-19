@@ -34,7 +34,14 @@ namespace PixelCreatures.Examples
         private OptionButton _familySelector = null!;
         private OptionButton _styleSelector = null!;
         private LineEdit _seedInput = null!;
+        private LineEdit _gearSeedInput = null!;
+        private Label _gearSeedSummary = null!;
         private CheckBox _equipmentToggle = null!;
+        private EquipmentSeedSet _equipmentSeeds = EquipmentSeedSet.FromMaster(54321UL);
+        private ulong _masterGearSeed = 54321UL;
+        private ulong _gearColorSeed = StableHash.Derive(54321UL, "equipment.colors");
+        private string _lastMasterGearSeedText = string.Empty;
+        private int _outfitRerolls, _weaponRerolls, _headgearRerolls, _accessoryRerolls;
         private Label _status = null!;
         private Label _seedResolved = null!;
         private Button _exportButton = null!;
@@ -152,7 +159,7 @@ namespace PixelCreatures.Examples
             };
             _seedInput.TextSubmitted += _ => GeneratePreview();
             seedRow.AddChild(_seedInput);
-            var randomSeed = new Button { Text = "随机", CustomMinimumSize = new Vector2(64, 34), TooltipText = "生成一个新 Seed" };
+            var randomSeed = new Button { Text = "随机身体", CustomMinimumSize = new Vector2(76, 34), TooltipText = "只改变身体 Seed" };
             randomSeed.Pressed += () =>
             {
                 _seedInput.Text = Math.Max(1u, GD.Randi()).ToString(CultureInfo.InvariantCulture);
@@ -176,6 +183,62 @@ namespace PixelCreatures.Examples
 
             column.AddChild(new HSeparator());
             column.AddChild(SectionLabel("02  装备与风格"));
+            column.AddChild(FieldLabel("装备 Seed（独立于身体）"));
+            var gearSeedRow = new HBoxContainer();
+            gearSeedRow.AddThemeConstantOverride("separation", 6);
+            _gearSeedInput = new LineEdit
+            {
+                Text = "54321",
+                PlaceholderText = "输入装备 Seed…",
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+                CustomMinimumSize = new Vector2(0, 34),
+                ClearButtonEnabled = true,
+            };
+            _gearSeedInput.TextSubmitted += _ => GeneratePreview();
+            gearSeedRow.AddChild(_gearSeedInput);
+            var randomGearSeed = new Button
+            {
+                Text = "整套随机",
+                CustomMinimumSize = new Vector2(76, 34),
+                TooltipText = "只重新生成装备 Seed，保留身体外形",
+            };
+            randomGearSeed.Pressed += () =>
+            {
+                _gearSeedInput.Text = NextRandomSeed().ToString(CultureInfo.InvariantCulture);
+                GeneratePreview();
+            };
+            gearSeedRow.AddChild(randomGearSeed);
+            column.AddChild(gearSeedRow);
+
+            _gearSeedSummary = new Label
+            {
+                Text = "服装 / 武器 / 头部 / 配件：待生成",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            };
+            _gearSeedSummary.AddThemeFontSizeOverride("font_size", 10);
+            _gearSeedSummary.AddThemeColorOverride("font_color", new Color(0.58f, 0.66f, 0.76f));
+            column.AddChild(_gearSeedSummary);
+
+            var rerollRowA = new HBoxContainer();
+            rerollRowA.AddThemeConstantOverride("separation", 6);
+            var rerollOutfit = new Button { Text = "随机服装", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 32) };
+            rerollOutfit.Pressed += () => RerollEquipmentSlot(EquipmentSlot.Outfit);
+            rerollRowA.AddChild(rerollOutfit);
+            var rerollWeapon = new Button { Text = "随机武器", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 32) };
+            rerollWeapon.Pressed += () => RerollEquipmentSlot(EquipmentSlot.Weapon);
+            rerollRowA.AddChild(rerollWeapon);
+            column.AddChild(rerollRowA);
+
+            var rerollRowB = new HBoxContainer();
+            rerollRowB.AddThemeConstantOverride("separation", 6);
+            var rerollHeadgear = new Button { Text = "随机头部装备", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 32) };
+            rerollHeadgear.Pressed += () => RerollEquipmentSlot(EquipmentSlot.Headgear);
+            rerollRowB.AddChild(rerollHeadgear);
+            var rerollAccessory = new Button { Text = "随机配件", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 32) };
+            rerollAccessory.Pressed += () => RerollEquipmentSlot(EquipmentSlot.Accessory);
+            rerollRowB.AddChild(rerollAccessory);
+            column.AddChild(rerollRowB);
+
             _equipmentToggle = new CheckBox { Text = "启用装备", ButtonPressed = true, FocusMode = Control.FocusModeEnum.None };
             _equipmentToggle.Toggled += _ => GeneratePreview();
             column.AddChild(_equipmentToggle);
@@ -341,26 +404,115 @@ namespace PixelCreatures.Examples
                 .With("gear.pauldrons", 0);
         }
 
+        private static ulong NextRandomSeed()
+        {
+            ulong seed = ((ulong)GD.Randi() << 32) | GD.Randi();
+            return seed == 0 ? 1UL : seed;
+        }
+
+        private void SyncEquipmentSeeds()
+        {
+            if (_gearSeedInput == null) return;
+            string text = _gearSeedInput.Text.Trim();
+            if (text.Length == 0) text = "0";
+            if (string.Equals(text, _lastMasterGearSeedText, StringComparison.Ordinal)) return;
+
+            _lastMasterGearSeedText = text;
+            _masterGearSeed = StableHash.SeedFromText(text);
+            _gearColorSeed = StableHash.Derive(_masterGearSeed, "equipment.colors");
+            _equipmentSeeds = EquipmentSeedSet.FromMaster(_masterGearSeed);
+            _outfitRerolls = _weaponRerolls = _headgearRerolls = _accessoryRerolls = 0;
+            UpdateEquipmentSeedSummary();
+        }
+
+        private void RerollEquipmentSlot(EquipmentSlot slot)
+        {
+            SyncEquipmentSeeds();
+            int count = slot switch
+            {
+                EquipmentSlot.Outfit => ++_outfitRerolls,
+                EquipmentSlot.Weapon => ++_weaponRerolls,
+                EquipmentSlot.Headgear => ++_headgearRerolls,
+                _ => ++_accessoryRerolls,
+            };
+            ulong rerolled = StableHash.Derive(_masterGearSeed,
+                "preview.reroll." + slot.ToString().ToLowerInvariant(), count);
+            _equipmentSeeds = slot switch
+            {
+                EquipmentSlot.Outfit => new EquipmentSeedSet(rerolled, _equipmentSeeds.WeaponSeed, _equipmentSeeds.HeadgearSeed, _equipmentSeeds.AccessorySeed),
+                EquipmentSlot.Weapon => new EquipmentSeedSet(_equipmentSeeds.OutfitSeed, rerolled, _equipmentSeeds.HeadgearSeed, _equipmentSeeds.AccessorySeed),
+                EquipmentSlot.Headgear => new EquipmentSeedSet(_equipmentSeeds.OutfitSeed, _equipmentSeeds.WeaponSeed, rerolled, _equipmentSeeds.AccessorySeed),
+                _ => new EquipmentSeedSet(_equipmentSeeds.OutfitSeed, _equipmentSeeds.WeaponSeed, _equipmentSeeds.HeadgearSeed, rerolled),
+            };
+            UpdateEquipmentSeedSummary();
+            GeneratePreview();
+        }
+
+        private void UpdateEquipmentSeedSummary()
+        {
+            if (_gearSeedSummary == null) return;
+            static string Short(ulong seed) => (seed & 0xffffffffUL).ToString("x8", CultureInfo.InvariantCulture);
+            _gearSeedSummary.Text =
+                $"服装 {Short(_equipmentSeeds.OutfitSeed)} · 武器 {Short(_equipmentSeeds.WeaponSeed)}\n" +
+                $"头部 {Short(_equipmentSeeds.HeadgearSeed)} · 配件 {Short(_equipmentSeeds.AccessorySeed)}";
+        }
+
+        private CreatureGenome ApplyGearColors(CreatureGenome genome)
+        {
+            var colors = CreatureRuntime.Sample("biped", _gearColorSeed);
+            foreach (string gene in new[] { "color.clothHue", "color.clothSaturation", "color.clothValue", "color.metal" })
+                if (genome.Schema.Contains(gene) && colors.Schema.Contains(gene))
+                    genome = genome.With(gene, colors.Get(gene));
+            return genome;
+        }
+
+        private CreatureGenome ApplyNativeEquipmentGenes(CreatureGenome genome)
+        {
+            var outfit = CreatureRuntime.Sample("biped", _equipmentSeeds.OutfitSeed);
+            var weapon = CreatureRuntime.Sample("biped", _equipmentSeeds.WeaponSeed);
+            var headgear = CreatureRuntime.Sample("biped", _equipmentSeeds.HeadgearSeed);
+            var accessory = CreatureRuntime.Sample("biped", _equipmentSeeds.AccessorySeed);
+            var master = CreatureRuntime.Sample("biped", _masterGearSeed);
+
+            genome = genome
+                .With("gear.outfit", outfit.Get("gear.outfit"))
+                .With("gear.weapon", weapon.Get("gear.weapon"))
+                .With("gear.helmet", headgear.Get("gear.helmet"))
+                .With("gear.shield", accessory.Get("gear.shield"))
+                .With("gear.pauldrons", accessory.Get("gear.pauldrons"))
+                // Legacy fantasy gear shares one size gene. Only the full gear seed changes it.
+                .With("gear.size", master.Get("gear.size"));
+            return genome;
+        }
+
         private void GeneratePreview()
         {
             if (_familySelector == null || _styleSelector == null || _equipmentToggle == null) return;
             try
             {
                 EnsureStyleCompatibility();
+                SyncEquipmentSeeds();
                 string familyId = SelectedFamilyId;
                 string style = SelectedStyleId;
                 ulong seed = StableHash.SeedFromText(_seedInput.Text);
                 bool showEquipment = _equipmentToggle.ButtonPressed;
+                bool isBiped = string.Equals(familyId, "biped", StringComparison.OrdinalIgnoreCase);
 
                 CreatureGenome genome = CreatureRuntime.Sample(familyId, seed);
-                if (string.Equals(familyId, "biped", StringComparison.OrdinalIgnoreCase) &&
-                    (!showEquipment || !string.Equals(style, "fantasy", StringComparison.OrdinalIgnoreCase)))
-                    genome = DisableNativeGear(genome);
+                if (isBiped)
+                {
+                    // Equipment colours are tied to the gear seed, not the body seed.
+                    genome = ApplyGearColors(genome);
+                    if (!showEquipment || !string.Equals(style, "fantasy", StringComparison.OrdinalIgnoreCase))
+                        genome = DisableNativeGear(genome);
+                    else
+                        genome = ApplyNativeEquipmentGenes(genome);
+                }
 
                 CreatureModel model = CreatureRuntime.Build(genome);
                 CreatureAnatomy anatomy = model.Anatomy;
-                if (showEquipment && !string.Equals(style, "fantasy", StringComparison.OrdinalIgnoreCase))
-                    anatomy = EquipmentGenerator.Apply(anatomy, style, seed);
+                if (showEquipment && isBiped && !string.Equals(style, "fantasy", StringComparison.OrdinalIgnoreCase))
+                    anatomy = EquipmentGenerator.Apply(anatomy, style, _equipmentSeeds);
 
                 ObjMeshResult result = ObjMeshExporter.Export(
                     anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
@@ -375,6 +527,8 @@ namespace PixelCreatures.Examples
                     $"装备：{(showEquipment ? "开启" : "关闭")}\n" +
                     $"网格：{result.Vertices:N0} 顶点 · {result.Triangles:N0} 三角形\n" +
                     $"模型键：{anatomy.AnatomyKey:X16}" +
+                    $"\n身体 Seed：{seed}" +
+                    $"\n装备 Seed：{_masterGearSeed}" +
                     (_compatibilityNote.Length > 0 ? $"\n\n{_compatibilityNote}" : string.Empty);
                 _exportButton.Disabled = false;
             }
