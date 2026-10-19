@@ -118,6 +118,7 @@ uniform vec4 ramp_light : source_color = vec4(0.75, 0.75, 0.75, 1.0);
 uniform vec4 ramp_highlight : source_color = vec4(0.95, 0.95, 0.95, 1.0);
 uniform bool use_emission = false;
 uniform float emission_strength = 0.0;
+uniform bool use_fixed_shade = false;
 
 void fragment() {
     ALBEDO = ramp_base.rgb;
@@ -129,16 +130,19 @@ void fragment() {
 
 void light() {
     float n_dot_l = max(dot(NORMAL, LIGHT), 0.0);
-    // Back-facing surfaces still receive the darkest authored ramp shade. Returning
-    // zero diffuse light here made unlit sides and the insides of intersecting shells pure black.
-    vec3 band = ramp_deep.rgb;
-    if (n_dot_l >= 0.20) band = ramp_shadow.rgb;
-    if (n_dot_l >= 0.42) band = ramp_base.rgb;
-    if (n_dot_l >= 0.68) band = ramp_light.rgb;
-    if (n_dot_l >= 0.88) band = ramp_highlight.rgb;
-    // The palette ramp is already an authored colour value. Keep the two preview
-    // lights from washing light shades toward white.
-    DIFFUSE_LIGHT += band * LIGHT_COLOR * ATTENUATION * 0.52;
+    if (use_fixed_shade) {
+        DIFFUSE_LIGHT += ramp_base.rgb * LIGHT_COLOR * ATTENUATION * 0.52;
+    } else {
+        // Use the material's base hue for the main ramp. The 2D palette deliberately
+        // shifts shadows toward violet and highlights toward yellow; applying those
+        // shifts at full strength to 3D lighting made every curved part look striped.
+        vec3 band = ramp_base.rgb * 0.34;
+        if (n_dot_l >= 0.20) band = mix(ramp_base.rgb * 0.58, ramp_shadow.rgb, 0.12);
+        if (n_dot_l >= 0.42) band = ramp_base.rgb;
+        if (n_dot_l >= 0.68) band = mix(min(ramp_base.rgb * 1.14, vec3(1.0)), ramp_light.rgb, 0.12);
+        if (n_dot_l >= 0.88) band = mix(min(ramp_base.rgb * 1.27, vec3(1.0)), ramp_highlight.rgb, 0.16);
+        DIFFUSE_LIGHT += band * LIGHT_COLOR * ATTENUATION * 0.52;
+    }
 }"
             };
             return _toonShader;
@@ -157,6 +161,7 @@ void light() {
             }
             material.SetShaderParameter("use_emission", emissive);
             material.SetShaderParameter("emission_strength", emissive ? 0.55f : 0.0f);
+            material.SetShaderParameter("use_fixed_shade", fixedShade >= 0);
             return material;
         }
 
