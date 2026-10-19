@@ -88,3 +88,8 @@ Register more styles by implementing `IEquipmentStylePack` and calling `Equipmen
 ## Scope & safety
 
 Weapons are **fictional videogame visual props**, not real-world mechanical designs. Damage, firing and gameplay interactions must be implemented separately.
+
+
+## Godot preview shading / triangle normals
+
+The custom `light()` shader processor uses a guarded block rather than `return;` (Godot rejects early returns in this processor). Two-sided triangle exports duplicate the reverse face with a separate vertex triplet; sharing indices for opposite faces makes generated normals cancel. The preview keeps back-face culling enabled to avoid depth fighting between coincident front and reverse faces. This source fix is committed; rebuild and visual inspection in Godot 4.7.1 are still required.
