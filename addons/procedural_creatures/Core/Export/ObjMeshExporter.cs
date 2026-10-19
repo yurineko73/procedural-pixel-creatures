@@ -1,6 +1,6 @@
 // Procedural Pixel Creatures - experimental static 3D OBJ export.
 // Converts the underlying 3D anatomy primitives, never the rasterized pixel frames.
-// Intentionally exports REST POSE ONLY: no skinning, animation, SDF unions or UVs.
+// Intentionally exports REST POSE ONLY: no skinning, animation or UVs.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -27,8 +27,8 @@ namespace PixelCreatures.Core.Export
     }
 
     /// <summary>
-    /// Engine-independent OBJ preview exporter. A primitive creates its own closed/flat mesh;
-    /// intersecting parts remain intersecting rather than being boolean-unioned.
+    /// Engine-independent OBJ preview exporter. Organic skin and selected soft garment groups are
+    /// fused into closed outer surfaces; hard gear and fine details remain separate.
     /// </summary>
     public static class ObjMeshExporter
     {
@@ -48,11 +48,15 @@ namespace PixelCreatures.Core.Export
             obj.Append("mtllib ").AppendLine(materialFile);
             var emitter = new MeshEmitter(obj, unitsPerPixel);
             var organicBody = ImplicitBodyMesher.Build(anatomy);
+            var garmentMeshes = ImplicitBodyMesher.BuildClothingGroups(anatomy);
+            var mergedPrimitiveIndices = new HashSet<int>(organicBody.PrimitiveIndices);
+            foreach (var garment in garmentMeshes)
+                mergedPrimitiveIndices.UnionWith(garment.PrimitiveIndices);
 
             for (int index = 0; index < anatomy.Primitives.Count; index++)
             {
                 PrimitiveDef p = anatomy.Primitives[index];
-                if (organicBody.PrimitiveIndices.Contains(index)) continue;
+                if (mergedPrimitiveIndices.Contains(index)) continue;
                 if (p.Group < 0 || p.Group >= anatomy.Groups.Count) continue;
                 obj.Append("o primitive_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine();
                 obj.Append("usemtl ").Append(p.Material.ToString()).AppendLine();
@@ -77,10 +81,15 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
-            // Emit the fused organic skin after standalone hard details and equipment.
-            // Its single outer surface replaces overlapping body ellipsoids/cones that previously
-            // exposed internal shells and dark holes at joints.
-            emitter.AppendMesh(organicBody);
+            // Emit fused skin and garment surfaces after the remaining standalone details.
+            // These opaque surfaces replace the overlapping closed shells that previously exposed
+            // internal body faces and made stacked clothing ellipsoids look like separate blobs.
+            emitter.AppendMesh(organicBody, "organic_body");
+            foreach (var garment in garmentMeshes)
+            {
+                string groupName = anatomy.Groups[garment.GroupIndex].Name ?? "garment";
+                emitter.AppendMesh(garment, "garment_" + groupName.Replace('.', '_').Replace(' ', '_'));
+            }
 
             // Facial features are stored separately from body primitives in CreatureAnatomy.
             // Export them explicitly so 3D previews retain eyes, pupils, highlights and nostrils.
@@ -277,7 +286,7 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
-            public void AppendMesh(ImplicitBodyMesher.MeshData mesh)
+            public void AppendMesh(ImplicitBodyMesher.MeshData mesh, string objectPrefix)
             {
                 if (mesh == null || mesh.Vertices.Count < 3 || mesh.Faces.Count == 0) return;
                 int[] globalIndices = new int[mesh.Vertices.Count];
@@ -291,7 +300,7 @@ namespace PixelCreatures.Core.Export
                         if (face.Material == material) { hasFaces = true; break; }
                     if (!hasFaces) continue;
 
-                    _obj.Append("o organic_body_").AppendLine(material.ToString());
+                    _obj.Append("o ").Append(objectPrefix).Append('_').AppendLine(material.ToString());
                     _obj.Append("usemtl ").AppendLine(material.ToString());
                     foreach (var face in mesh.Faces)
                         if (face.Material == material)
