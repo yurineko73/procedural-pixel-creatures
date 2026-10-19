@@ -14,6 +14,7 @@ namespace PixelCreatures.Core.Export
         private const double Smoothness = 0.9;
         private const double ClothingSmoothness = 0.4;
         private const double TargetStep = 1.25;
+        private const double ClothingTargetStep = 0.8;
         private const long MaxGridPoints = 260_000;
 
         public sealed class Face
@@ -103,7 +104,7 @@ namespace PixelCreatures.Core.Export
                 if (!IsGarmentGroup(name)) continue;
                 var mesh = BuildSelected(anatomy,
                     p => p.Group == capturedGroup && ShouldUnifyClothing(anatomy, p),
-                    ClothingSmoothness, TargetStep, capturedGroup);
+                    ClothingSmoothness, ClothingTargetStep, capturedGroup);
                 if (mesh.Faces.Count > 0) result.Add(mesh);
             }
             return result;
