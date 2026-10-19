@@ -679,19 +679,19 @@ namespace PixelCreatures.Core.Families
                     Gear.Pouch(b, torso, waist - beltW, Math.Max(1.0, hipR * 0.3), -1, MaterialSlot.Cloth);
                     break;
                 case "tunic":
-                    Gear.Cover(b, torso, "gear.tunic", MaterialSlot.Cloth, 1.04, 0.45, p => true);
+                    Gear.Cover(b, torso, "gear.tunic", MaterialSlot.Cloth, 1.06, 0.7, p => true);
                     Gear.Skirt(b, torso, waist, Math.Max(2.5, waistY - torso.HipJointHeight * 0.6), MaterialSlot.Cloth);
                     Gear.Belt(b, torso, waist, beltW, MaterialSlot.Cloth, -2, true);
                     break;
                 case "armor":
                     // cuirass over chest and belly, cloth skirt below
-                    Gear.Cover(b, torso, "gear.undercoat", MaterialSlot.Cloth, 1.03, 0.4, p => p.Tag == "hips");
+                    Gear.Cover(b, torso, "gear.undercoat", MaterialSlot.Cloth, 1.05, 0.65, p => p.Tag == "hips");
                     Gear.Skirt(b, torso, waist, Math.Max(2.5, waistY - torso.HipJointHeight * 0.62), MaterialSlot.Cloth);
-                    Gear.Cover(b, torso, "gear.breastplate", MaterialSlot.Metal, 1.05, 0.5, p => p.Tag != "hips", Gear.Bias + 0.25);
+                    Gear.Cover(b, torso, "gear.breastplate", MaterialSlot.Metal, 1.07, 0.75, p => p.Tag != "hips", Gear.Bias + 0.25);
                     Gear.Belt(b, torso, waist, beltW, MaterialSlot.Cloth, -2, true);
                     break;
                 case "robe":
-                    Gear.Cover(b, torso, "gear.robe", MaterialSlot.Cloth, 1.05, 0.45, p => true);
+                    Gear.Cover(b, torso, "gear.robe", MaterialSlot.Cloth, 1.07, 0.7, p => true);
                     Gear.Skirt(b, torso, waist, Math.Max(3.0, waistY - torso.HipJointHeight * 0.16), MaterialSlot.Cloth, 1.12);
                     Gear.Belt(b, torso, waist, beltW, MaterialSlot.Cloth, -2, false);
                     break;
