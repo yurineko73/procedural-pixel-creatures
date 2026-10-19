@@ -17,10 +17,12 @@ godot --path . res://examples/preview_3d/CreaturePreview3D.tscn
 ## Controls
 
 - Choose a creature family.
-- Enter a numeric or text seed; press Enter or **Regenerate** to reproduce that creature.
-- **Random** writes a new numeric seed into the field.
+- **Body Seed** controls the body morphology and body palette. Enter a numeric or text seed; press Enter or **Regenerate** to reproduce it. **Random Body** changes only this seed.
+- **Equipment Seed** is independent of the body. Changing it re-derives the outfit, weapon, headgear and accessory streams, as well as the equipment colour seed. **Random All Gear** changes only this master seed.
+- Use **Random Outfit**, **Random Weapon**, **Random Headgear**, and **Random Accessory** to reroll one equipment category while preserving the other category seeds. The active per-slot seeds are shown below the master equipment seed.
 - Enable/disable equipment.
-- Select Fantasy (the family's original procedural gear), Modern, Sci-Fi, or Wasteland.
+- Select Fantasy (the family's original procedural gear), Modern, Sci-Fi, or Wasteland. The three new style packs use the same four independent slot streams.
+- In the original Fantasy schema, `gear.size` is shared by several pieces and therefore changes only when the master equipment seed changes; slot rerolls only change the genes belonging to that slot.
 - Drag the model area to orbit; use the mouse wheel to zoom; reset the camera if needed.
 - **Export OBJ + MTL** writes the current preview to `user://exports/3d-preview/` and opens that directory.
 
@@ -28,11 +30,11 @@ The three new equipment packs currently support the `biped` family. Selecting an
 
 ## What this prototype renders
 
-The preview uses the current creature's base palette and converts the rest-pose primitives into Godot triangle meshes. Material slots are split into separate mesh instances. The world includes a simple pedestal, ground grid, environment lighting and an orbit camera.
+The preview exports both anatomy primitives and the separately stored face features (eye socket, sclera, iris/pupil, shine, nostrils and spots) into Godot triangle meshes. Materials use the creature's six palette shades through a custom stepped toon shader instead of a single base colour. The world includes a simple pedestal, ground grid, environment lighting and an orbit camera.
 
 This is a geometry proof of concept, not a game-ready rig:
 - no Skeleton3D skinning or animation;
-- no UV textures or faithful reproduction of pixel patterns;
+- no UV textures or faithful reproduction of pixel patterns, original pixel contours, or full 2D soft-union shading;
 - no 3D boolean/SDF union, so primitive intersections and seams are expected;
 - the OBJ/MTL export uses placeholder material definitions even though the live preview uses the sampled creature palette.
 
