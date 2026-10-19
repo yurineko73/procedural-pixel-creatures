@@ -9,13 +9,7 @@
 
 ## Status
 
-**Current verification (2026-10-19, Asia/Shanghai):** Godot 4.7.1 .NET is available locally.
-Fixed seven unqualified `SizeFlags` references in the Node3D preview controller that prevented
-the shared C# assembly from building, blocking both examples. `dotnet build` now succeeds;
-both standalone examples pass import/headless startup. Core harness: 19/19 passed.
-Godot quick suite: **31/31 passed**, including a new test that checks that both examples generate models/mesh surfaces.
-Visual inspection, orbit/UI interaction and manual OBJ export remain pending.
-The earlier statements below about unavailable tools and no test results are historical and superseded.
+**Baseline verification before the latest gear/face/toon changes (2026-10-19, Asia/Shanghai):** Godot 4.7.1 .NET was available locally. The prior preview controller build succeeded; both standalone examples passed import/headless startup; the core harness and Godot quick suite passed at that point. Those results are historical and do **not** validate the latest independent-seed, facial-feature-export, native gear randomizer or toon-shader changes below. The latest delta has only had static source review; rebuild and rerun all checks before declaring it validated.
 
 | Milestone | Status | Verification |
 |---|---|---|
