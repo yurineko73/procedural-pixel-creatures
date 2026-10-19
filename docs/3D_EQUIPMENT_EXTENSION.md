@@ -111,3 +111,5 @@ The static 3D exporter now fuses eligible organic skin primitives into a continu
 To reduce surface holes, the SDF field no longer switches between hard-min and smooth-min at a distance threshold; extracted triangles are oriented against the field gradient, and intersections landing exactly on sampled grid points share a single cached vertex. MeshData reports boundary-edge and non-manifold-edge counts. The Godot preview shader explicitly requests `depth_draw_opaque` and `cull_disabled`, so reversed triangles are not simply culled and the surfaces remain depth-writing opaque. Biped cover offsets were increased slightly to keep cloth/armour outside the fused body.
 
 Regression coverage now checks a closed body manifold and verifies garment primitive shells are replaced by one garment surface. These are source-level checks only until the CoreHarness test and Godot 4.7.1 preview are actually run.
+
+The preview mesh builder calculates shared source-vertex normals across all material groups before splitting them into Godot surfaces, reducing artificial shading seams along skin color transitions.
