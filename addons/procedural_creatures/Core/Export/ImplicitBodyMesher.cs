@@ -11,9 +11,10 @@ namespace PixelCreatures.Core.Export
 {
     public static class ImplicitBodyMesher
     {
-        private const double Smoothness = 2.0;
-        private const double TargetStep = 2.0;
-        private const long MaxGridPoints = 200_000;
+        private const double Smoothness = 0.9;
+        private const double ClothingSmoothness = 0.4;
+        private const double TargetStep = 1.25;
+        private const long MaxGridPoints = 260_000;
 
         public sealed class Face
         {
@@ -33,6 +34,9 @@ namespace PixelCreatures.Core.Export
             public List<Vec3> Vertices { get; } = new List<Vec3>();
             public List<Face> Faces { get; } = new List<Face>();
             public HashSet<int> PrimitiveIndices { get; } = new HashSet<int>();
+            public int GroupIndex { get; set; } = -1;
+            public int BoundaryEdgeCount { get; internal set; }
+            public int NonManifoldEdgeCount { get; internal set; }
         }
 
         private sealed class Shape
@@ -65,7 +69,7 @@ namespace PixelCreatures.Core.Export
         {
             if (primitive.Kind != PrimKind.Ellipsoid && primitive.Kind != PrimKind.RoundCone) return false;
             if (primitive.Material != MaterialSlot.Primary && primitive.Material != MaterialSlot.Secondary) return false;
-            if ((primitive.Flags & (PrimFlags.Hard | PrimFlags.Faceted | PrimFlags.Thin)) != 0) return false;
+            if ((primitive.Flags & (PrimFlags.Hard | PrimFlags.Faceted | PrimFlags.Thin | PrimFlags.Translucent | PrimFlags.FrontOnly)) != 0) return false;
             if (primitive.Group < 0 || primitive.Group >= anatomy.Groups.Count) return false;
 
             PartGroup group = anatomy.Groups[primitive.Group];
@@ -80,10 +84,56 @@ namespace PixelCreatures.Core.Export
             return true;
         }
 
-        public static MeshData Build(CreatureAnatomy anatomy)
+        public static MeshData Build(CreatureAnatomy anatomy) =>
+            BuildSelected(anatomy, p => ShouldUnify(anatomy, p), Smoothness, TargetStep, -1);
+
+        /// <summary>
+        /// Fuses the layered ellipsoids that make up soft garments into one fitted surface per
+        /// garment group. Metal armour is fused only for the breastplate; helmets, shields,
+        /// pauldrons, buckles and other hard gear remain independent.
+        /// </summary>
+        public static List<MeshData> BuildClothingGroups(CreatureAnatomy anatomy)
         {
             if (anatomy == null) throw new ArgumentNullException(nameof(anatomy));
-            var mesh = new MeshData();
+            var result = new List<MeshData>();
+            for (int groupIndex = 0; groupIndex < anatomy.Groups.Count; groupIndex++)
+            {
+                int capturedGroup = groupIndex;
+                string name = anatomy.Groups[capturedGroup].Name ?? string.Empty;
+                if (!IsGarmentGroup(name)) continue;
+                var mesh = BuildSelected(anatomy,
+                    p => p.Group == capturedGroup && ShouldUnifyClothing(anatomy, p),
+                    ClothingSmoothness, TargetStep, capturedGroup);
+                if (mesh.Faces.Count > 0) result.Add(mesh);
+            }
+            return result;
+        }
+
+        private static bool IsGarmentGroup(string name) =>
+            name == "gear.tunic" ||
+            name == "gear.undercoat" ||
+            name == "gear.breastplate" ||
+            name == "gear.robe" ||
+            name == "gear.skirt" ||
+            name == "gear.flapF" ||
+            name == "gear.flapB";
+
+        private static bool ShouldUnifyClothing(CreatureAnatomy anatomy, PrimitiveDef primitive)
+        {
+            if (primitive.Kind != PrimKind.Ellipsoid && primitive.Kind != PrimKind.RoundCone) return false;
+            if ((primitive.Flags & (PrimFlags.Hard | PrimFlags.Faceted | PrimFlags.Thin | PrimFlags.Translucent | PrimFlags.FrontOnly)) != 0) return false;
+            if (primitive.Group < 0 || primitive.Group >= anatomy.Groups.Count) return false;
+            string name = anatomy.Groups[primitive.Group].Name ?? string.Empty;
+            if (!IsGarmentGroup(name)) return false;
+            if (name == "gear.breastplate") return primitive.Material == MaterialSlot.Metal;
+            return primitive.Material == MaterialSlot.Cloth;
+        }
+
+        private static MeshData BuildSelected(CreatureAnatomy anatomy, Func<PrimitiveDef, bool> include,
+            double smoothness, double targetStep, int groupIndex)
+        {
+            if (anatomy == null) throw new ArgumentNullException(nameof(anatomy));
+            var mesh = new MeshData { GroupIndex = groupIndex };
             var shapes = new List<Shape>();
             double minX = double.PositiveInfinity, minY = double.PositiveInfinity, minZ = double.PositiveInfinity;
             double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity, maxZ = double.NegativeInfinity;
@@ -91,7 +141,7 @@ namespace PixelCreatures.Core.Export
             for (int i = 0; i < anatomy.Primitives.Count; i++)
             {
                 PrimitiveDef p = anatomy.Primitives[i];
-                if (!ShouldUnify(anatomy, p)) continue;
+                if (!include(p)) continue;
 
                 var shape = new Shape
                 {
@@ -126,10 +176,10 @@ namespace PixelCreatures.Core.Export
 
             if (shapes.Count == 0) return mesh;
 
-            double margin = Smoothness + TargetStep;
+            double margin = smoothness + targetStep;
             minX -= margin; minY -= margin; minZ -= margin;
             maxX += margin; maxY += margin; maxZ += margin;
-            double step = TargetStep;
+            double step = targetStep;
             int nx, ny, nz;
             while (true)
             {
@@ -152,7 +202,7 @@ namespace PixelCreatures.Core.Export
                 int index = Index(x, y, z);
                 Vec3 point = new Vec3(minX + x * step, minY + y * step, minZ + z * step);
                 points[index] = point;
-                distances[index] = Field(point, shapes);
+                distances[index] = Field(point, shapes, smoothness);
             }
 
             var edgeVertices = new Dictionary<long, int>();
@@ -180,14 +230,36 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
-            // If an unusual anatomy yields no closed isosurface, retain the old primitive mesh
-            // rather than silently removing the organic body.
             if (mesh.Faces.Count == 0)
             {
                 mesh.PrimitiveIndices.Clear();
                 mesh.Vertices.Clear();
+                return mesh;
+            }
+
+            // A closed opaque skin should use every surface edge exactly twice. Keep these
+            // counters available to regression tests so extraction cracks cannot go unnoticed.
+            var edgeUse = new Dictionary<long, int>();
+            foreach (Face face in mesh.Faces)
+            {
+                CountEdge(edgeUse, face.A, face.B);
+                CountEdge(edgeUse, face.B, face.C);
+                CountEdge(edgeUse, face.C, face.A);
+            }
+            foreach (int uses in edgeUse.Values)
+            {
+                if (uses == 1) mesh.BoundaryEdgeCount++;
+                else if (uses != 2) mesh.NonManifoldEdgeCount++;
             }
             return mesh;
+        }
+
+        private static void CountEdge(Dictionary<long, int> edgeUse, int a, int b)
+        {
+            int low = Math.Min(a, b), high = Math.Max(a, b);
+            long key = ((long)low << 32) | (uint)high;
+            edgeUse.TryGetValue(key, out int count);
+            edgeUse[key] = count + 1;
         }
 
         private static void ExpandBounds(Vec3 p, double radius,
@@ -198,15 +270,13 @@ namespace PixelCreatures.Core.Export
             maxX = Math.Max(maxX, p.X + radius); maxY = Math.Max(maxY, p.Y + radius); maxZ = Math.Max(maxZ, p.Z + radius);
         }
 
-        private static double Field(Vec3 point, List<Shape> shapes)
+        private static double Field(Vec3 point, List<Shape> shapes, double smoothness)
         {
             double result = double.PositiveInfinity;
             foreach (Shape shape in shapes)
             {
                 double d = Distance(point, shape);
-                if (double.IsPositiveInfinity(result)) result = d;
-                else if (Math.Min(result, d) < Smoothness * 2.0) result = SmoothMin(result, d, Smoothness);
-                else result = Math.Min(result, d);
+                result = double.IsPositiveInfinity(result) ? d : SmoothMin(result, d, smoothness);
             }
             return result;
         }
