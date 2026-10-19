@@ -316,21 +316,29 @@ namespace PixelCreatures.Core.Export
                 Vec3 u = Vec3.Cross(normal, guide).Normalized();
                 Vec3 v = Vec3.Cross(normal, u).Normalized();
                 int centerA = Vertex(a), centerB = Vertex(b);
-                int[] ringA = new int[sides], ringB = new int[sides];
+                // Cap rings and side rings deliberately do not share indices. Otherwise
+                // GenerateNormals averages the flat cap normal with the curved side normal,
+                // creating bright/dark pinstripes at every limb and weapon end.
+                int[] sideRingA = new int[sides], sideRingB = new int[sides];
+                int[] capRingA = new int[sides], capRingB = new int[sides];
                 for (int i = 0; i < sides; i++)
                 {
                     double t = 2 * Math.PI * i / sides;
                     Vec3 dir = u * Math.Cos(t) + v * Math.Sin(t);
-                    ringA[i] = Vertex(a + dir * ra);
-                    ringB[i] = Vertex(b + dir * rb);
+                    Vec3 pointA = a + dir * ra;
+                    Vec3 pointB = b + dir * rb;
+                    sideRingA[i] = Vertex(pointA);
+                    sideRingB[i] = Vertex(pointB);
+                    capRingA[i] = Vertex(pointA);
+                    capRingB[i] = Vertex(pointB);
                 }
                 for (int i = 0; i < sides; i++)
                 {
                     int n = (i + 1) % sides;
-                    Face(centerA, ringA[n], ringA[i]);
-                    Face(ringA[i], ringA[n], ringB[i]);
-                    Face(ringA[n], ringB[n], ringB[i]);
-                    Face(centerB, ringB[i], ringB[n]);
+                    Face(centerA, capRingA[n], capRingA[i]);
+                    Face(sideRingA[i], sideRingA[n], sideRingB[i]);
+                    Face(sideRingA[n], sideRingB[n], sideRingB[i]);
+                    Face(centerB, capRingB[i], capRingB[n]);
                 }
             }
         }
