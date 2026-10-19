@@ -40,6 +40,7 @@ namespace PixelCreatures.Tests
             r.Run("motion.turning_in_place_reorients_body", ctx => TurnInPlace(ctx, registry, factory));
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
+            r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("equipment.style_overlay_deterministic", ctx => EquipmentStyleSmoke(ctx, registry));
             r.Run("equipment.slot_seeds_are_independent", ctx => EquipmentSlotIndependence(ctx, registry));
             r.Run("equipment.native_gear_slot_seeds_are_independent", ctx => NativeGearSlotIndependence(ctx, registry));
@@ -67,12 +68,25 @@ namespace PixelCreatures.Tests
                     ctx.True(first.ObjText.Contains("usemtl FeaturePupil", StringComparison.Ordinal), "biped: missing 3D pupils");
                     ctx.True(first.ObjText.Contains("usemtl FeatureHighlight", StringComparison.Ordinal), "biped: missing eye highlights");
                     ctx.True(first.MtlText.Contains("newmtl FeatureSclera", StringComparison.Ordinal), "biped: missing sclera material");
-                    ctx.True(HasSeparatedTwoSidedTriangleVertices(first.ObjText),
-                        "biped: two-sided triangle backfaces must use separate vertices to avoid cancelling generated normals");
+
                 }
                 ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                     !first.ObjText.Contains("Infinity", StringComparison.Ordinal), family.Id + ": nonfinite OBJ values");
             }
+        }
+
+        private static void ObjTwoSidedTriangleNormals(TestContext ctx)
+        {
+            var builder = new AnatomyBuilder("triangle_test", 1);
+            int root = builder.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int group = builder.Group("plate", 0);
+            builder.Triangle(group, root, new Vec3(-1, 0, 0),
+                root, new Vec3(1, 0, 0), root, new Vec3(0, 1, 0),
+                MaterialSlot.Primary, flags: PrimFlags.TwoSided);
+            var anatomy = builder.Build(1);
+            var result = ObjMeshExporter.Export(anatomy, 8, 4);
+            ctx.True(HasSeparatedTwoSidedTriangleVertices(result.ObjText),
+                "two-sided triangle must export two independent vertex triplets and two faces");
         }
 
         private static bool HasSeparatedTwoSidedTriangleVertices(string objText)
