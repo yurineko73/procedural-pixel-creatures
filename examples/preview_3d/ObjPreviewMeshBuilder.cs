@@ -21,8 +21,8 @@ namespace PixelCreatures.Examples
             }
 
             var vertices = new List<Vector3>();
-            var facesByMaterial = new Dictionary<MaterialSlot, List<int>>();
-            MaterialSlot currentMaterial = MaterialSlot.Primary;
+            var facesByMaterial = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            string currentMaterial = nameof(MaterialSlot.Primary);
 
             foreach (string rawLine in objText.Split('\n'))
             {
@@ -39,8 +39,7 @@ namespace PixelCreatures.Examples
                 }
                 else if (line.StartsWith("usemtl ", StringComparison.Ordinal))
                 {
-                    string name = line.Substring(7).Trim();
-                    if (Enum.TryParse(name, out MaterialSlot parsed)) currentMaterial = parsed;
+                    currentMaterial = line.Substring(7).Trim();
                 }
                 else if (line.StartsWith("f ", StringComparison.Ordinal))
                 {
@@ -60,7 +59,7 @@ namespace PixelCreatures.Examples
                 }
             }
 
-            foreach (var entry in facesByMaterial.OrderBy(pair => (int)pair.Key))
+            foreach (var entry in facesByMaterial.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
                 var remap = new Dictionary<int, int>();
                 var localVertices = new List<Vector3>();
@@ -96,24 +95,86 @@ namespace PixelCreatures.Examples
             }
         }
 
-        private static StandardMaterial3D CreateMaterial(MaterialSlot slot, CreaturePalette palette)
+        private static readonly string[] RampUniforms =
         {
-            Rgba rgba = palette.Color(slot, Shade.Base);
-            var color = new Color(rgba.R / 255f, rgba.G / 255f, rgba.B / 255f);
-            var material = new StandardMaterial3D
+            "ramp_outline", "ramp_deep", "ramp_shadow", "ramp_base", "ramp_light", "ramp_highlight",
+        };
+
+        private static Shader? _toonShader;
+
+        private static Shader GetToonShader()
+        {
+            if (_toonShader != null) return _toonShader;
+            _toonShader = new Shader
             {
-                AlbedoColor = color,
-                Roughness = slot == MaterialSlot.Metal ? 0.36f : 0.76f,
-                Metallic = slot == MaterialSlot.Metal ? 0.72f : 0.02f,
-                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                Code = @"shader_type spatial;
+render_mode specular_disabled, ambient_light_disabled;
+
+uniform vec4 ramp_outline : source_color = vec4(0.04, 0.03, 0.05, 1.0);
+uniform vec4 ramp_deep : source_color = vec4(0.12, 0.10, 0.15, 1.0);
+uniform vec4 ramp_shadow : source_color = vec4(0.28, 0.25, 0.32, 1.0);
+uniform vec4 ramp_base : source_color = vec4(0.5, 0.5, 0.5, 1.0);
+uniform vec4 ramp_light : source_color = vec4(0.75, 0.75, 0.75, 1.0);
+uniform vec4 ramp_highlight : source_color = vec4(0.95, 0.95, 0.95, 1.0);
+uniform bool use_emission = false;
+uniform float emission_strength = 0.0;
+
+void fragment() {
+    ALBEDO = ramp_base.rgb;
+    ROUGHNESS = 0.92;
+    if (use_emission) {
+        EMISSION = ramp_light.rgb * emission_strength;
+    }
+}
+
+void light() {
+    float n_dot_l = max(dot(NORMAL, LIGHT), 0.0);
+    if (n_dot_l < 0.025) {
+        return;
+    }
+    vec3 band = ramp_deep.rgb;
+    if (n_dot_l >= 0.20) band = ramp_shadow.rgb;
+    if (n_dot_l >= 0.42) band = ramp_base.rgb;
+    if (n_dot_l >= 0.68) band = ramp_light.rgb;
+    if (n_dot_l >= 0.88) band = ramp_highlight.rgb;
+    DIFFUSE_LIGHT += band * LIGHT_COLOR * ATTENUATION;
+}"
             };
-            if (slot == MaterialSlot.Glow)
+            return _toonShader;
+        }
+
+        private static ShaderMaterial CreateMaterial(string materialName, CreaturePalette palette)
+        {
+            (MaterialSlot slot, int fixedShade, bool emissive) = ResolveMaterial(materialName);
+            var material = new ShaderMaterial { Shader = GetToonShader() };
+            for (int shade = 0; shade < Shade.Count; shade++)
             {
-                material.EmissionEnabled = true;
-                material.Emission = color;
-                material.EmissionEnergyMultiplier = 1.7f;
+                int paletteShade = fixedShade >= 0 ? fixedShade : shade;
+                Rgba rgba = palette.Color(slot, paletteShade);
+                material.SetShaderParameter(RampUniforms[shade],
+                    new Color(rgba.R / 255f, rgba.G / 255f, rgba.B / 255f, rgba.A / 255f));
             }
+            material.SetShaderParameter("use_emission", emissive);
+            material.SetShaderParameter("emission_strength", emissive ? 0.55f : 0.0f);
             return material;
+        }
+
+        private static (MaterialSlot Slot, int FixedShade, bool Emissive) ResolveMaterial(string name)
+        {
+            return name switch
+            {
+                "FeatureOutline" => (MaterialSlot.Primary, Shade.Outline, false),
+                "FeatureSocket" => (MaterialSlot.Primary, Shade.Deep, false),
+                "FeatureSclera" => (MaterialSlot.Teeth, Shade.Base, false),
+                "FeatureIris" => (MaterialSlot.Eye, Shade.Base, false),
+                "FeaturePupil" => (MaterialSlot.Primary, Shade.Outline, false),
+                "FeatureHighlight" => (MaterialSlot.Teeth, Shade.Highlight, false),
+                "FeatureGlow" => (MaterialSlot.Glow, Shade.Light, true),
+                "FeatureNostril" => (MaterialSlot.Primary, Shade.Deep, false),
+                _ when Enum.TryParse(name, out MaterialSlot slot) && slot != MaterialSlot.Count =>
+                    (slot, -1, slot == MaterialSlot.Glow),
+                _ => (MaterialSlot.Primary, -1, false),
+            };
         }
     }
 }
