@@ -67,10 +67,34 @@ namespace PixelCreatures.Tests
                     ctx.True(first.ObjText.Contains("usemtl FeaturePupil", StringComparison.Ordinal), "biped: missing 3D pupils");
                     ctx.True(first.ObjText.Contains("usemtl FeatureHighlight", StringComparison.Ordinal), "biped: missing eye highlights");
                     ctx.True(first.MtlText.Contains("newmtl FeatureSclera", StringComparison.Ordinal), "biped: missing sclera material");
+                    ctx.True(HasSeparatedTwoSidedTriangleVertices(first.ObjText),
+                        "biped: two-sided triangle backfaces must use separate vertices to avoid cancelling generated normals");
                 }
                 ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                     !first.ObjText.Contains("Infinity", StringComparison.Ordinal), family.Id + ": nonfinite OBJ values");
             }
+        }
+
+        private static bool HasSeparatedTwoSidedTriangleVertices(string objText)
+        {
+            int vertices = 0, faces = 0;
+            bool inObject = false;
+            foreach (string raw in objText.Split('\n'))
+            {
+                string line = raw.Trim();
+                if (line.StartsWith("o ", StringComparison.Ordinal))
+                {
+                    if (inObject && vertices == 6 && faces == 2) return true;
+                    inObject = true;
+                    vertices = 0;
+                    faces = 0;
+                    continue;
+                }
+                if (!inObject) continue;
+                if (line.StartsWith("v ", StringComparison.Ordinal)) vertices++;
+                else if (line.StartsWith("f ", StringComparison.Ordinal)) faces++;
+            }
+            return inObject && vertices == 6 && faces == 2;
         }
 
         private static void EquipmentStyleSmoke(TestContext ctx, CreatureRegistry reg)
