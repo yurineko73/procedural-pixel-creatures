@@ -231,16 +231,40 @@ namespace PixelCreatures.Core.Equipment
             if (c.RandomFor("vest", EquipmentSlot.Outfit).Chance(0.7))
                 c.Ellipsoid("vest", chest, shell.LocalA + new Vec3(0, -shell.Radii.Y * 0.5, 0),
                     new Vec3(shell.Radii.X * 0.75, shell.Radii.Y * 0.5, shell.Radii.Z * 0.92), MaterialSlot.Cloth);
-            if (c.RandomFor("backpack", EquipmentSlot.Outfit).Chance(0.7))
+            if (c.RandomFor("backpack", EquipmentSlot.Accessory).Chance(0.7))
                 c.Ellipsoid("backpack", chest, shell.LocalA + new Vec3(0, shell.Radii.Y * 1.12, 0),
                     new Vec3(shell.Radii.X * 0.65, shell.Radii.Y * 0.45, shell.Radii.Z * 0.82), MaterialSlot.Cloth);
-            if (c.RandomFor("cap", EquipmentSlot.Headgear).Chance(0.55))
+            var headgear = c.RandomFor("headgear", EquipmentSlot.Headgear);
+            var skull = c.FindShell(head);
+            if (skull != null)
             {
-                var skull = c.FindShell(head);
-                if (skull != null)
+                int variant = headgear.Range(0, 2);
+                if (variant == 0)
+                {
                     c.Ellipsoid("cap", head, skull.LocalA + new Vec3(0, skull.Radii.Y * 0.66, 0),
                         new Vec3(skull.Radii.X * 1.05, skull.Radii.Y * 0.37, skull.Radii.Z * 1.1), MaterialSlot.Cloth);
+                }
+                else if (variant == 1)
+                {
+                    c.Ellipsoid("helmet", head, skull.LocalA + new Vec3(0, skull.Radii.Y * 0.12, 0),
+                        skull.Radii * headgear.Range(1.04, 1.12), MaterialSlot.Metal);
+                    c.Ellipsoid("helmet.visor", head, skull.LocalA + new Vec3(skull.Radii.X * 0.42, skull.Radii.Y * 0.04, 0),
+                        new Vec3(skull.Radii.X * 0.18, skull.Radii.Y * 0.30, skull.Radii.Z * 0.86), MaterialSlot.Glow, PrimFlags.Emissive);
+                }
+                else
+                {
+                    c.Ellipsoid("headset.band", head, skull.LocalA + new Vec3(0, skull.Radii.Y * 0.52, 0),
+                        new Vec3(skull.Radii.X * 0.72, skull.Radii.Y * 0.17, skull.Radii.Z * 1.08), MaterialSlot.Metal);
+                    foreach (int side in new[] { -1, 1 })
+                        c.Ellipsoid("headset.cup." + side, head,
+                            skull.LocalA + new Vec3(0, 0, side * skull.Radii.Z * 0.92),
+                            new Vec3(skull.Radii.X * 0.22, skull.Radii.Y * 0.34, skull.Radii.Z * 0.22), MaterialSlot.Cloth);
+                }
             }
+            var accessory = c.RandomFor("radio", EquipmentSlot.Accessory);
+            if (accessory.Chance(0.55))
+                c.Ellipsoid("radio", chest, shell.LocalA + new Vec3(-shell.Radii.X * 0.36, -shell.Radii.Y * 0.25, shell.Radii.Z * 0.86),
+                    new Vec3(shell.Radii.X * 0.18, shell.Radii.Y * 0.22, shell.Radii.Z * 0.20), MaterialSlot.Metal);
             // Fictional sidearm game prop (visual only, no functioning mechanisms).
             var prop = c.RandomFor("prop", EquipmentSlot.Weapon);
             double s = prop.Range(1.6, 2.5);
@@ -278,10 +302,11 @@ namespace PixelCreatures.Core.Equipment
             var skull = c.FindShell(head);
             if (skull != null)
             {
+                var helmet = c.RandomFor("helmet", EquipmentSlot.Headgear);
                 c.Ellipsoid("helmet", head, skull.LocalA + new Vec3(0, skull.Radii.Y * 0.13, 0),
-                    skull.Radii * 1.10, MaterialSlot.Metal);
-                c.Ellipsoid("visor", head, skull.LocalA + new Vec3(skull.Radii.X * 0.33, 0, 0),
-                    new Vec3(skull.Radii.X * 0.2, skull.Radii.Y * 0.47, skull.Radii.Z * 0.78),
+                    skull.Radii * helmet.Range(1.06, 1.16), MaterialSlot.Metal);
+                c.Ellipsoid("visor", head, skull.LocalA + new Vec3(skull.Radii.X * helmet.Range(0.28, 0.40), 0, 0),
+                    new Vec3(skull.Radii.X * helmet.Range(0.18, 0.27), skull.Radii.Y * helmet.Range(0.38, 0.54), skull.Radii.Z * 0.80),
                     MaterialSlot.Glow, PrimFlags.Emissive);
             }
             // Stylized energy weapon: component proportions vary deterministically.
@@ -304,17 +329,45 @@ namespace PixelCreatures.Core.Equipment
         public void Build(EquipmentBuildContext c)
         {
             int chest = c.RequireBone(BoneRole.Chest);
+            int head = c.RequireBone(BoneRole.Head);
             int hand = c.RequireBone(BoneRole.Hand, 1);
             var shell = c.FindShell(chest)!;
-            c.Cover("patched.coat", chest, 1.12, MaterialSlot.Cloth);
+            var coat = c.RandomFor("coat", EquipmentSlot.Outfit);
+            c.Cover("patched.coat", chest, coat.Range(1.08, 1.18), MaterialSlot.Cloth);
+            c.Ellipsoid("coat.collar", chest, shell.LocalA + new Vec3(0, -shell.Radii.Y * 0.68, 0),
+                new Vec3(shell.Radii.X * 0.58, shell.Radii.Y * 0.25, shell.Radii.Z * 1.03), MaterialSlot.Cloth);
+
             var random = c.RandomFor("scrap.plates", EquipmentSlot.Accessory);
             int count = random.Range(2, 4);
             for (int i = 0; i < count; i++)
                 c.Ellipsoid("scrap.plate." + i, chest,
                     shell.LocalA + new Vec3(random.Range(-0.6, 0.6), -shell.Radii.Y * 1.13, random.Range(-shell.Radii.Z * 0.7, shell.Radii.Z * 0.7)),
                     new Vec3(random.Range(0.7, 1.5), 0.6, random.Range(0.8, 1.4)), MaterialSlot.Metal);
-            c.Ellipsoid("scrap.tool", hand, new Vec3(1.2, 0, 0),
-                new Vec3(2.2, 0.6, 0.55), MaterialSlot.Metal);
+
+            var skull = c.FindShell(head);
+            if (skull != null)
+            {
+                var headgear = c.RandomFor("headgear", EquipmentSlot.Headgear);
+                int variant = headgear.Range(0, 2);
+                if (variant == 0)
+                    c.Ellipsoid("bandana", head, skull.LocalA + new Vec3(0, skull.Radii.Y * 0.48, 0),
+                        new Vec3(skull.Radii.X * 0.92, skull.Radii.Y * 0.24, skull.Radii.Z * 1.04), MaterialSlot.Cloth);
+                else if (variant == 1)
+                {
+                    c.Ellipsoid("scrap.helmet", head, skull.LocalA + new Vec3(0, skull.Radii.Y * 0.1, 0),
+                        skull.Radii * headgear.Range(1.04, 1.13), MaterialSlot.Metal);
+                    c.Ellipsoid("scrap.visor", head, skull.LocalA + new Vec3(skull.Radii.X * 0.4, -skull.Radii.Y * 0.08, 0),
+                        new Vec3(skull.Radii.X * 0.16, skull.Radii.Y * 0.24, skull.Radii.Z * 0.82), MaterialSlot.Metal);
+                }
+                else
+                    c.Ellipsoid("respirator", head, skull.LocalA + new Vec3(skull.Radii.X * 0.68, -skull.Radii.Y * 0.30, 0),
+                        new Vec3(skull.Radii.X * 0.25, skull.Radii.Y * 0.25, skull.Radii.Z * 0.58), MaterialSlot.Metal);
+            }
+
+            var tool = c.RandomFor("scrap.tool", EquipmentSlot.Weapon);
+            double length = tool.Range(1.7, 2.6);
+            c.Ellipsoid("scrap.tool", hand, new Vec3(length * 0.55, 0, 0),
+                new Vec3(length, tool.Range(0.42, 0.72), 0.55), MaterialSlot.Metal);
         }
     }
 }
