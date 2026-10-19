@@ -136,3 +136,7 @@ Further source changes committed:
 - Increase the biped tunic/undercoat/breastplate/robe clearance slightly so the garment skin sits outside the fused body instead of z-fighting/intersecting it.
 
 **Validation status:** source and structural checks only; this environment cannot resolve GitHub to clone/build the repository, and the changes have not yet been compiled or visually tested in Godot. Rebuild the preview, inspect front/side/back, and run `export.obj_unifies_organic_primitives`. If the boundary-edge assertion fails, investigate the mesher topology before further visual tuning.
+
+## Final preview seam refinement (2026-10-19)
+
+The OBJ-to-Godot builder now calculates vertex normals across the complete OBJ before splitting geometry into per-material surfaces. This avoids sharp artificial normal seams where the fused body changes from Primary to Secondary material. The shader remains opaque and depth-writing. This is still awaiting an actual Godot scene run.
