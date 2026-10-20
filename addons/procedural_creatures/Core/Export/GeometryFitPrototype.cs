@@ -1,7 +1,8 @@
 // Experimental geometry-fit prototype.
 // Fits a small set of semantic primitive groups against the original 2D renderer silhouettes.
 // This is deliberately not a depth-map-to-volume reconstruction: it keeps the source anatomy,
-// adjusts only bounded group transforms, and scores a lightweight projection of parametric surfaces.
+// adjusts only bounded group transforms, uses a cheap projection to guide search, and scores candidates
+// against silhouettes from the actual exported OBJ.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
