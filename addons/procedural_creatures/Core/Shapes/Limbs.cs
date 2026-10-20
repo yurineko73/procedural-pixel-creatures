@@ -263,6 +263,9 @@ namespace PixelCreatures.Core.Shapes
                         new Vec3(s.PawLength * 0.2 + s.ClawSize, -s.PawRadius * 0.7, zo * 1.1), 0.3, MaterialSlot.Accent, PatternDomain.None, 0, 1, s.Side);
                     claw.Flags |= PrimFlags.Thin | PrimFlags.NoPattern | PrimFlags.Hard;
                     claw.MinQuality = 1;
+                    // Match the explicit foot-claw tag so the 3D exporter can seat nails
+                    // against the matching palm without changing the old 2D pose.
+                    claw.Tag = s.Name + ".claw";
                 }
             }
         }
