@@ -225,3 +225,24 @@ Code committed to `feature/3d-modular-equipment`:
 **Validation status:** code and tests committed and source delimiter / wiring inspected, but **not built or run**. This tool environment lacks `dotnet`, `csc` and `godot` and cannot clone GitHub due to DNS. GitHub Actions remains disabled per prior user instruction; no workflow was reenabled.
 
 **Acceptance criteria for next Godot 4.7.1 run:** for seeds 12345/54321 and 973718778264341244/3941624577870863579, check upper and side lip contact (teeth should not fan outside the upper lip); left/right hand/foot nails should grow from the attached palm/paw and not sit on the pedestal; shaft axis should be consistently held at the hand pivot without dragging through the platform. Run the three named regressions and existing CoreHarness suite. If failures persist, report exact failing Seed, viewpoint and whether equipment enabled; do not mark P0 visually complete or expand gear catalogue until fixed.
+
+
+## 2026-10-20 — Mouth cavity, ear roots and arthropod leg chains (code committed; Godot verification pending)
+
+User screenshot feedback: `biped` Body Seed **12345** / Equipment Seed **54321** now has improved claws but still shows external-looking fangs and, more fundamentally, has **no visible mouth**. Another biped Body Seed **5437137294946840838** / Equipment Seed **17047702928857436918** shows free-looking ear bases. An `arthropod` Body Seed **14734810077418951438** / Equipment Seed **9423138326607858554** shows discontinuous limb segments.
+
+**Root causes verified in original code:**
+- `Heads.Build()` already generates an animated jaw plus a `.mouthInterior` primitive, but sets `GroupFlags.Interior`, hiding it in the original 2D closed-mouth pose. Static 3D global SDF also excludes interior shapes, so the head mesh has no visible lips, slit or cavity despite independently exported teeth.
+- `Ears.Build()` creates separate ear bone chains from a silhouette base; when their starting bone is beyond the true skull ellipsoid, the 3D outer and inner ear do not touch the head. Moving inner and outer primitives separately is wrong.
+- `Limbs.Build()` supplies a continuous upper/lower/distal arthropod bone chain, but thin segments at or below the globally capped SDF grid step can disappear or fragment, despite correct source joints.
+
+**Implemented on `feature/3d-modular-equipment`:**
+1. `ImplicitBodyMesher.cs`: use the existing `.mouthInterior` + head/jaw/snout semantic information to construct a 3D rest-pose mouth cutter in the head bone frame. Subtract its small elliptical slit from the organic body SDF and label the exposed inner wall `MaterialSlot.Mouth`. No permanent changes to source anatomy or the original 2D jaw animation. Short-snouted faces fall back to a compact cranium-front slot. This is a shallow closed-mouth indentation, not a fully animated open-mouth topology.
+2. `PreviewHeadAttachmentFit.cs`: compute a deterministic translation per ear group so its original `.outer` root is embedded just beneath the same-bone skull ellipsoid. Apply the same correction to both outer and inner ear geometry to prevent cartilage/root separation. Head and ear source skeletons are unchanged.
+3. `PreviewSegmentChainFit.cs`: for `arthropod` leg groups `leg*N`, find complete `.upper/.lower/.distal` chains, preserve each original joint as the next segment's origin, use a minimum leg tube thickness and overlapping joint spheres. Incomplete chains fall back to legacy exporter.
+4. `ImplicitBodyMesher.ShouldUnify` excludes those arthropod leg segments from the full-body coarse voxel skin. `ObjMeshExporter` emits exact rest-pose chain tubes and applies ear-group transforms; other animal families retain existing geometry rules.
+5. New regressions `export.preview_visible_mouth_cavity`, `export.preview_ears_embed_in_skull`, `export.preview_arthropod_leg_chain` verify mouth material exposure/manifold surface, ear-root enclosure, and chain continuity, respectively.
+
+**Verification:** structural checks and source wiring inspected; still **not compiled, unit-tested or rendered in Godot** because no `dotnet`, `csc`, `godot` or GitHub-clone network access is available in this session. Existing GitHub Actions remains disabled. Do not mark P0 resolved until the tests and visual checks pass.
+
+**Next local acceptance:** first re-run fixed seeds above from front, side and top views. Require a recognizable dark mouth slit below the snout, teeth actually rooted to that lip/cavity, two embedded ear bases, and continuous arthropod leg chains that connect to the thorax. Also inspect quadruped/reptile and humanoid faces for unintended mouth carving. Expand gear variants only after geometry stabilizes.
