@@ -276,13 +276,13 @@ namespace PixelCreatures.Examples
             {
                 Text = "多视角深度重建（实验 / 不含装备）",
                 ButtonPressed = false,
-                TooltipText = "从16个方向读取原版2D深度与轮廓，重建静态网格；不是旧版SDF导出。",
+                TooltipText = "从16个方向读取原版2D深度、法线与轮廓，平滑重建表面并恢复骨骼挂接的眼睛等特征；不是旧版SDF导出。",
             };
             _multiviewToggle.Toggled += _ => GeneratePreview();
             column.AddChild(_multiviewToggle);
             var multiviewHint = new Label
             {
-                Text = "关闭：原来的3D导出。开启：从2D可见表面重建；暂不含装备或动画。首次重建可能短暂卡顿。",
+                Text = "关闭：原来的3D导出。开启：多视角深度/法线约束 + 平滑表面 + 原版眼部特征；暂不含装备或动画。首次重建可能短暂卡顿。",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             multiviewHint.AddThemeFontSizeOverride("font_size", 11);
@@ -586,7 +586,7 @@ namespace PixelCreatures.Examples
                     double mean = 0, worst = 1;
                     foreach (double value in iou) { mean += value; worst = Math.Min(worst, value); }
                     mean /= iou.Length;
-                    reconstructionNote = $"\n方法：16方向原版2D轮廓 + 深度交集\n轮廓IoU：平均 {mean:P1} / 最低 {worst:P1}\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
+                    reconstructionNote = $"\n方法：16方向轮廓/深度法线约束 + 平滑表面/特征\n轮廓IoU：平均 {mean:P1} / 最低 {worst:P1}\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
                 }
                 else
                 {
