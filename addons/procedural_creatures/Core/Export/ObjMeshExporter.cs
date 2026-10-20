@@ -128,7 +128,21 @@ namespace PixelCreatures.Core.Export
             Vec3 up = Vec3.Cross(normal, right).NormalizedOr(Vec3.UnitY);
             Func<Vec3, Vec3> localToWorld = p => position + right * p.X + up * p.Y + normal * p.Z;
 
+            // FeatureDef.Size is the nominal full 2D eye-stamp height, not an ellipsoid radius.
+            // The old exporter treated it as a radius (nearly doubling eye height) and let large
+            // eyes exceed the cranium, making sockets/pupils look detached on small heads.
             double size = Math.Max(0.7, feature.Size);
+            if (feature.Kind == FeatureKind.Eye)
+            {
+                foreach (PrimitiveDef p in anatomy.Primitives)
+                {
+                    if (p.Kind != PrimKind.Ellipsoid || p.BoneA != feature.Bone ||
+                        !p.Tag.EndsWith(".cranium", StringComparison.Ordinal)) continue;
+                    double headLimit = Math.Min(p.Radii.Y, p.Radii.Z) * 0.8;
+                    size = Math.Min(size, Math.Max(0.7, headLimit));
+                    break;
+                }
+            }
             double aspect = DMath.Clamp(feature.Aspect, 0.55, 1.8);
             string prefix = "feature_" + index.ToString(CultureInfo.InvariantCulture) + "_";
 
@@ -151,33 +165,33 @@ namespace PixelCreatures.Core.Export
 
             double width = size * aspect;
             EmitFeatureEllipsoid(obj, emitter, localToWorld, new Vec3(0, 0, size * 0.02),
-                new Vec3(width * 0.70, size * 0.90, size * 0.24),
+                new Vec3(width * 0.55, size * 0.55, size * 0.16),
                 "FeatureSocket", prefix + "socket", sides, rings);
 
-            Vec3 eyeCenter = new Vec3(0, 0, size * 0.13);
+            Vec3 eyeCenter = new Vec3(0, 0, size * 0.10);
             if (feature.Style == EyeStyle.Round)
             {
                 EmitFeatureEllipsoid(obj, emitter, localToWorld, eyeCenter,
-                    new Vec3(width * 0.56, size * 0.70, size * 0.22),
+                    new Vec3(width * 0.45, size * 0.48, size * 0.18),
                     "FeatureSclera", prefix + "sclera", sides, rings);
             }
 
             if (feature.Style == EyeStyle.Glow)
             {
                 EmitFeatureEllipsoid(obj, emitter, localToWorld, eyeCenter,
-                    new Vec3(width * 0.52, size * 0.70, size * 0.25),
+                    new Vec3(width * 0.45, size * 0.48, size * 0.20),
                     "FeatureGlow", prefix + "glow", sides, rings);
                 EmitFeatureEllipsoid(obj, emitter, localToWorld,
-                    new Vec3(0, size * 0.22, size * 0.36),
-                    new Vec3(width * 0.13, size * 0.17, size * 0.08),
+                    new Vec3(0, size * 0.15, size * 0.27),
+                    new Vec3(width * 0.11, size * 0.11, size * 0.05),
                     "FeatureHighlight", prefix + "glow_highlight", sides, rings);
                 return;
             }
 
             EmitFeatureEllipsoid(obj, emitter, localToWorld,
-                eyeCenter + new Vec3(feature.Side * size * 0.10, 0, size * 0.16),
-                new Vec3(width * (feature.Style == EyeStyle.Button ? 0.37 : 0.31),
-                    size * (feature.Style == EyeStyle.Button ? 0.46 : 0.43), size * 0.14),
+                eyeCenter + new Vec3(feature.Side * size * 0.08, 0, size * 0.15),
+                new Vec3(width * (feature.Style == EyeStyle.Button ? 0.31 : 0.27),
+                    size * (feature.Style == EyeStyle.Button ? 0.34 : 0.30), size * 0.10),
                 feature.Style == EyeStyle.Bead || feature.Style == EyeStyle.Button || feature.Style == EyeStyle.Compound
                     ? "FeaturePupil" : "FeatureIris",
                 prefix + "iris", sides, rings);
@@ -185,30 +199,30 @@ namespace PixelCreatures.Core.Export
             if (feature.Style == EyeStyle.Slit)
             {
                 EmitFeatureEllipsoid(obj, emitter, localToWorld,
-                    eyeCenter + new Vec3(feature.Side * size * 0.10, 0, size * 0.27),
-                    new Vec3(Math.Max(0.08, width * 0.075), size * 0.34, size * 0.075),
+                    eyeCenter + new Vec3(feature.Side * size * 0.08, 0, size * 0.23),
+                    new Vec3(Math.Max(0.06, width * 0.06), size * 0.28, size * 0.05),
                     "FeaturePupil", prefix + "slit", sides, rings);
             }
             else if (feature.Style == EyeStyle.Round)
             {
                 EmitFeatureEllipsoid(obj, emitter, localToWorld,
-                    eyeCenter + new Vec3(feature.Side * size * 0.10, -size * 0.02, size * 0.27),
-                    new Vec3(width * 0.16, size * 0.25, size * 0.08),
+                    eyeCenter + new Vec3(feature.Side * size * 0.08, -size * 0.02, size * 0.23),
+                    new Vec3(width * 0.14, size * 0.20, size * 0.06),
                     "FeaturePupil", prefix + "pupil", sides, rings);
             }
             else if (feature.Style == EyeStyle.Compound)
             {
                 for (int dot = -1; dot <= 1; dot++)
                     EmitFeatureEllipsoid(obj, emitter, localToWorld,
-                        eyeCenter + new Vec3(dot * width * 0.13, size * 0.12, size * 0.28),
-                        new Vec3(width * 0.07, size * 0.09, size * 0.055),
+                        eyeCenter + new Vec3(dot * width * 0.12, size * 0.08, size * 0.24),
+                        new Vec3(width * 0.06, size * 0.07, size * 0.04),
                         "FeatureHighlight", prefix + "facet_" + (dot + 1).ToString(CultureInfo.InvariantCulture), sides, rings);
             }
 
-            double shineScale = feature.Style == EyeStyle.Button ? 0.19 : 0.12;
+            double shineScale = feature.Style == EyeStyle.Button ? 0.16 : 0.11;
             EmitFeatureEllipsoid(obj, emitter, localToWorld,
-                eyeCenter + new Vec3(-feature.Side * size * 0.13, size * 0.20, size * 0.32),
-                new Vec3(width * shineScale, size * shineScale, size * 0.07),
+                eyeCenter + new Vec3(-feature.Side * size * 0.11, size * 0.16, size * 0.28),
+                new Vec3(width * shineScale, size * shineScale, size * 0.05),
                 "FeatureHighlight", prefix + "shine", sides, rings);
         }
 
