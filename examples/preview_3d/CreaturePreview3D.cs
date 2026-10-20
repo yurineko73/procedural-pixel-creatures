@@ -634,11 +634,11 @@ namespace PixelCreatures.Examples
                     vertexCount = result.Vertices;
                     triangleCount = result.Triangles;
                     reconstructionNote =
-                        $"\\n方法：原始几何分组 + 8视角有界坐标优化" +
-                        $"\\n拟合代理IoU：平均 {fit.InitialMeanIoU:P1} → {fit.FittedMeanIoU:P1}" +
-                        $"\\n最差视角：{fit.InitialWorstIoU:P1} → {fit.FittedWorstIoU:P1}" +
-                        $"\\n调整分组：{fit.AdjustedRegions}，评估次数：{fit.Evaluations}" +
-                        $"\\n参数：{fit.ParameterSummary}";
+                        $"\n方法：原始几何分组 + 8视角有界坐标优化" +
+                        $"\n拟合代理IoU：平均 {fit.InitialMeanIoU:P1} → {fit.FittedMeanIoU:P1}" +
+                        $"\n最差视角：{fit.InitialWorstIoU:P1} → {fit.FittedWorstIoU:P1}" +
+                        $"\n调整分组：{fit.AdjustedRegions}，评估次数：{fit.Evaluations}" +
+                        $"\n参数：{fit.ParameterSummary}";
                 }
                 else
                 {
