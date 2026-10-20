@@ -277,3 +277,20 @@ The recurring issue is not a few bad offsets. The original is a 2D silhouette/la
 4. Render all reported fixed seeds in Godot before accepting. Add geometry-level checks for root intersection and eye clearance, plus visual approval screenshots. Keep the original 2D pipeline unchanged.
 
 Status: source audit done; visual acceptance failed. No further geometry changes should be accepted as complete without a local Godot render and test run.
+
+
+## 2026-10-20 — First direct geometry fixes committed; runtime acceptance pending
+
+User feedback was correct: do not redesign the creature system. Reuse the complete 2D anatomy and make the static 3D export respect its authored geometry.
+
+**Changes committed on `feature/3d-modular-equipment`:**
+- `ImplicitBodyMesher.BuildMouthCutters` now uses the original `.mouthInterior` ellipsoid's local center, rotation and radii, with only a small expansion to open the static lip seam. Removed the guessed snout-70%-plus-downward-offset placement.
+- `PreviewDentalFit` now shortens teeth more and anchors them close to the snout axis so they enter the authored mouth cavity instead of being pushed below the muzzle.
+- `PreviewHeadAttachmentFit` now fits horn groups as well as ears. Horn roots are buried deeper to hide flat frustum caps; a close horn/eye pair receives a small group-wide clearance offset. These corrections are 3D-export-only.
+- `PreviewClawFit` now embeds claw roots deeper into the matching paw/foot/palm ellipsoid.
+- `tests/Core/CoreTests.cs` adds a horn-root/eye-clearance regression, checks that mouth surfaces stay near the authored cavity, and includes the two user-reported body/equipment seed pairs (12345/54321 and 16114805862360663785/3668598035714744795).
+
+**Verification status:** Regression tests are added but have NOT been executed in this environment. The repository reports zero GitHub Actions runs and zero check-runs for the latest commit, so there is no CI result to claim. A local Godot render is still required to visually approve the exact seeds from front/side views. If the mouth/eye-clearance tests fail, fix the implementation before asking the user to retest.
+
+Do not mark the 3D visual work complete yet.
+
