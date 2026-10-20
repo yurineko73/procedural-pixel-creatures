@@ -14,6 +14,7 @@ using PixelCreatures.Core.Genetics;
 using PixelCreatures.Core.Motion;
 using PixelCreatures.Core.Rendering;
 using PixelCreatures.Core.Serialization;
+using PixelCreatures.Core.Shapes;
 
 namespace PixelCreatures.Tests
 {
@@ -43,6 +44,9 @@ namespace PixelCreatures.Tests
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
+            r.Run("export.preview_ancestor_limb_attachment", ctx => PreviewAncestorAttachmentSmoke(ctx));
+            r.Run("export.preview_fuses_soft_accent_and_faceted_skin", ctx => PreviewSkinUnionSmoke(ctx));
+            r.Run("export.preview_headgear_eye_clearance", ctx => PreviewHeadgearClearanceSmoke(ctx));
             r.Run("export.preview_weapon_hand_socket", ctx => PreviewSocketSmoke(ctx));
             r.Run("export.preview_extreme_garment_fallback", ctx => PreviewGarmentFitSmoke(ctx));
             r.Run("export.preview_tiny_sdf_island_cleanup", ctx => PreviewMeshCleanerSmoke(ctx));
@@ -141,6 +145,79 @@ namespace PixelCreatures.Tests
                 "detached claw must not appear in final OBJ");
         }
 
+        private static void PreviewAncestorAttachmentSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 104);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int foot = b.Bone("foot", root, new Vec3(2, 0, 0), Quat.Identity, 0, BoneRole.Foot, 1);
+            int leg = b.Group("legR", 0.8);
+            b.Cone(leg, root, Vec3.Zero, 0.9, foot, Vec3.Zero, 0.8, MaterialSlot.Primary).Tag = "legR.distal";
+            var claw = b.Cone(leg, foot, new Vec3(0, 1.2, 0), 0.35,
+                foot, new Vec3(0, 2.0, 0), 0.2, MaterialSlot.Accent);
+            claw.Tag = "legR.claw";
+            var a = b.Build(1);
+            ctx.True(PreviewAttachmentRepair.TryRepair(a, claw, out PrimitiveDef corrected),
+                "a claw near its parent limb segment should be retained");
+            ctx.True(corrected.LocalA.Y < claw.LocalA.Y && corrected.LocalB.Y < claw.LocalB.Y,
+                "the claw base and tip should move together when its host is on an ancestor bone");
+            ctx.True(claw.LocalA.Y == 1.2, "ancestor repair must not mutate source anatomy");
+        }
+
+        private static void PreviewSkinUnionSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("skin_union_test", 105);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int body = b.Group("body", 1.5);
+            b.Ellipsoid(body, root, Vec3.Zero, new Vec3(5, 5, 4), MaterialSlot.Primary).Tag = "body.core";
+            var softAccent = b.Ellipsoid(body, root, new Vec3(3.8, 0, 0),
+                new Vec3(1.8, 1.5, 1.5), MaterialSlot.Accent);
+            softAccent.Tag = "head.snout";
+            var facetedSkin = b.Ellipsoid(body, root, new Vec3(-3.8, 0, 0),
+                new Vec3(1.8, 1.5, 1.5), MaterialSlot.Secondary);
+            facetedSkin.Flags |= PrimFlags.Faceted;
+            var a = b.Build(1);
+            ctx.True(ImplicitBodyMesher.ShouldUnify(a, softAccent),
+                "soft accent muzzle geometry in a core group should join the outer skin");
+            ctx.True(ImplicitBodyMesher.ShouldUnify(a, facetedSkin),
+                "2D faceted shading flags must not force a separate overlapping 3D shell");
+            var mesh = ImplicitBodyMesher.Build(a);
+            ctx.True(mesh.PrimitiveIndices.Contains(1) && mesh.PrimitiveIndices.Contains(2),
+                "the fused skin should own both soft accent and faceted core primitives");
+        }
+
+        private static void PreviewHeadgearClearanceSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 106);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            var spec = new HeadSpec
+            {
+                Name = "head",
+                ParentBone = root,
+                Position = new Vec3(0, 10, 0),
+                Forward = Vec3.UnitX,
+                SkullLength = 8,
+                SkullHeight = 6,
+                SkullWidth = 5,
+                SkullOffset = 0.3,
+                SnoutLength = 2,
+                SnoutRadius = 1.5,
+                JawLength = 0,
+                NoseSize = 0,
+                EyeSize = 2,
+                Teeth = TeethKind.None,
+            };
+            HeadResult head = Heads.Build(b, spec);
+            Gear.HeadGear(b, head, HeadGearKind.Helmet, -1, 1.0);
+            var anatomy = b.Build(1);
+            PrimitiveDef? helmet = null;
+            foreach (PrimitiveDef p in anatomy.Primitives)
+                if (p.Tag == "gear.helmet") { helmet = p; break; }
+            ctx.True(helmet != null, "helmet should be emitted");
+            ctx.True(helmet!.LocalA.Y - helmet.Radii.Y >
+                head.SkullCenterLocal.Y + head.SkullRadii.Y * 0.15,
+                "helmet lower edge should stay above the eye band rather than covering the face");
+        }
+
         private static void PreviewSocketSmoke(TestContext ctx)
         {
             var b = new AnatomyBuilder("biped", 101);
@@ -163,8 +240,13 @@ namespace PixelCreatures.Tests
             ctx.True((newTip - newBase).Length < (oldTip - oldBase).Length,
                 "weapon socket should reduce an excessively low-hanging long shaft");
             ctx.True(newTip.Y > newBase.Y, "weapon should point upright in rest-pose preview");
-            ctx.True(sockets.RadiusScale(a, shaft) > 0 && sockets.RadiusScale(a, shaft) <= 1,
+            double radiusScale = sockets.RadiusScale(a, shaft);
+            ctx.True(radiusScale > 0 && radiusScale <= 1,
                 "weapon socket must use a valid positive uniform scale");
+            double lowestAfterFit = Math.Min(newBase.Y - shaft.RadiusA * radiusScale,
+                newTip.Y - shaft.RadiusB * radiusScale);
+            ctx.True(lowestAfterFit >= 0.19,
+                "long weapons must be scaled to stay above the static preview floor");
             ctx.True(shaft.LocalA.Y == -8, "socket adjustment must not change the source weapon");
         }
 
