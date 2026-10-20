@@ -46,6 +46,8 @@ namespace PixelCreatures.Tests
             r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
             r.Run("export.preview_ancestor_limb_attachment", ctx => PreviewAncestorAttachmentSmoke(ctx));
             r.Run("export.preview_fuses_soft_accent_and_faceted_skin", ctx => PreviewSkinUnionSmoke(ctx));
+            r.Run("export.preview_standalone_appendage_materials", ctx => PreviewStandaloneAppendageSmoke(ctx));
+            r.Run("export.preview_eyestalk_bulb_fit", ctx => PreviewEyeStalkSmoke(ctx));
             r.Run("export.preview_headgear_eye_clearance", ctx => PreviewHeadgearClearanceSmoke(ctx));
             r.Run("export.preview_eye_stamp_scale", ctx => PreviewEyeStampScaleSmoke(ctx));
             r.Run("export.preview_weapon_hand_socket", ctx => PreviewSocketSmoke(ctx));
@@ -140,6 +142,14 @@ namespace PixelCreatures.Tests
                 "claw should be projected back into the host shell");
             ctx.True(!PreviewAttachmentRepair.TryRepair(a, far, out _),
                 "faraway microscopic claw must be suppressed");
+            var empty = new AnatomyBuilder("biped", 111);
+            int emptyBone = empty.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int emptyGroup = empty.Group("legR", 0.2);
+            var unsupported = empty.Cone(emptyGroup, emptyBone, new Vec3(0, 3, 0), 0.4,
+                emptyBone, new Vec3(0, 4, 0), 0.2, MaterialSlot.Accent);
+            unsupported.Tag = "legR.claw";
+            ctx.True(!PreviewAttachmentRepair.TryRepair(empty.Build(1), unsupported, out _),
+                "tiny claw with no body host must not float in the exported preview");
             ctx.True(near.LocalA.X == 2.4, "export repair must not mutate source anatomy");
             string obj = ObjMeshExporter.Export(a, 8, 4).ObjText;
             ctx.True(!obj.Contains("o primitive_2", StringComparison.Ordinal),
@@ -184,6 +194,74 @@ namespace PixelCreatures.Tests
             var mesh = ImplicitBodyMesher.Build(a);
             ctx.True(mesh.PrimitiveIndices.Contains(1) && mesh.PrimitiveIndices.Contains(2),
                 "the fused skin should own both soft accent and faceted core primitives");
+        }
+
+        private static void PreviewStandaloneAppendageSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("appendage_union_test", 108);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int body = b.Group("body", 0.7);
+            b.Ellipsoid(body, root, Vec3.Zero, new Vec3(3, 3, 3), MaterialSlot.Primary);
+            int hornGroup = b.Group("horn.left", 0.4);
+            var primaryHorn = b.Ellipsoid(hornGroup, root, new Vec3(0, 3, 0),
+                new Vec3(0.6, 2, 0.6), MaterialSlot.Primary);
+            int tentacleGroup = b.Group("tentacle.0", 0.4);
+            var secondaryTentacle = b.Ellipsoid(tentacleGroup, root, new Vec3(0, -3, 0),
+                new Vec3(0.7, 2, 0.7), MaterialSlot.Secondary);
+            var anatomy = b.Build(1);
+            ctx.True(!ImplicitBodyMesher.ShouldUnify(anatomy, primaryHorn) &&
+                !ImplicitBodyMesher.ShouldUnify(anatomy, secondaryTentacle),
+                "semantic appendage groups must stay separate even when they use core body colours");
+            var mesh = ImplicitBodyMesher.Build(anatomy);
+            ctx.True(mesh.PrimitiveIndices.SetEquals(new[] { 0 }),
+                "global SDF body union should not consume semantically independent appendages");
+        }
+
+        private static void PreviewEyeStalkSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("arthropod", 109);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int stalk = b.Bone("stalk", root, new Vec3(0, 2, 0), Quat.Identity, 0, BoneRole.Antenna, 1);
+            int g = b.Group("eyestalk.R", 0.4);
+            b.Cone(g, root, Vec3.Zero, 0.7, stalk, Vec3.Zero, 0.55, MaterialSlot.Primary);
+            var eye = new FeatureDef
+            {
+                Kind = FeatureKind.Eye,
+                Bone = stalk,
+                LocalPosition = new Vec3(0.2, 0, 0),
+                LocalNormal = Vec3.UnitX,
+                Size = 2.2,
+                Style = EyeStyle.Bead,
+                Side = 1,
+                Group = -1
+            };
+            b.Feature(eye);
+            var a = b.Build(1);
+            var fit = PreviewFeatureFit.Evaluate(a, eye);
+            ctx.True(fit.NeedsBacking, "bare eye-stalk tip must generate a fitted 3D bulb");
+            ctx.True(fit.Size > 0 && fit.Size <= eye.Size, "eye bulb should be within the authored stamp scale");
+            string obj = ObjMeshExporter.Export(a, 8, 4).ObjText;
+            ctx.True(obj.Contains("o feature_0_backing", StringComparison.Ordinal),
+                "OBJ preview should contain a supporting eye bulb at the end of the stalk");
+
+            var b2 = new AnatomyBuilder("biped", 110);
+            int head = b2.Bone("head", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Head);
+            int headGroup = b2.Group("head", 0.7);
+            b2.Ellipsoid(headGroup, head, Vec3.Zero, new Vec3(3, 3, 3), MaterialSlot.Primary)
+                .Tag = "head.cranium";
+            var normalEye = new FeatureDef
+            {
+                Kind = FeatureKind.Eye,
+                Bone = head,
+                LocalPosition = new Vec3(0, 0, 3),
+                LocalNormal = Vec3.UnitZ,
+                Size = 5,
+                Group = headGroup
+            };
+            b2.Feature(normalEye);
+            var normalFit = PreviewFeatureFit.Evaluate(b2.Build(1), normalEye);
+            ctx.True(!normalFit.NeedsBacking && normalFit.Size <= 2.4,
+                "eyes on an existing skull should scale to the skull instead of growing another bulb");
         }
 
         private static void PreviewHeadgearClearanceSmoke(TestContext ctx)
