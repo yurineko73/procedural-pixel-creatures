@@ -697,10 +697,10 @@ namespace PixelCreatures.Examples
                     triangleCount = result.Mesh.Triangles;
                     reconstructionNote =
                         $"\n方法：语义分组径向拓扑 + 8视角顶点约束（不使用SDF/体素并集）" +
-                        $"\\n旧SDF主体轮廓IoU：平均 {result.BaselineMeanIoU:P1} / 最差 {result.BaselineWorstIoU:P1}" +
-                        $"\\n新拓扑初始IoU：平均 {result.TemplateMeanIoU:P1} / 最差 {result.TemplateWorstIoU:P1}" +
-                        $"\\n约束后IoU：平均 {result.FittedMeanIoU:P1} / 最差 {result.FittedWorstIoU:P1}" +
-                        $"\\n语义网格分组：{result.RegionCount}，调整顶点：{result.RelaxedVertices:N0}";
+                        $"\n旧SDF主体轮廓IoU：平均 {result.BaselineMeanIoU:P1} / 最差 {result.BaselineWorstIoU:P1}" +
+                        $"\n新拓扑初始IoU：平均 {result.TemplateMeanIoU:P1} / 最差 {result.TemplateWorstIoU:P1}" +
+                        $"\n约束后IoU：平均 {result.FittedMeanIoU:P1} / 最差 {result.FittedWorstIoU:P1}" +
+                        $"\n语义网格分组：{result.RegionCount}，调整顶点：{result.RelaxedVertices:N0}";
                 }
                 else
                 {
