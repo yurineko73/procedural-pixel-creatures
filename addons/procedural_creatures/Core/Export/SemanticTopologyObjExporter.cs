@@ -35,12 +35,13 @@ namespace PixelCreatures.Core.Export
                 {
                     Vec3 a = patch.Vertices[face.A], b = patch.Vertices[face.B], c = patch.Vertices[face.C];
                     Vec3 normal = Vec3.Cross(b - a, c - a).NormalizedOr(Vec3.UnitY);
-                    MaterialSlot material = MultiviewReconstructor.MaterialAt((a + b + c) / 3.0,
-                        normal, captures, rotations, offsets, eyes, model.Palette, anatomy);
-                    if ((int)material != previousMaterial)
+                    byte paletteIndex = PixelColorAt((a + b + c) / 3.0, normal,
+                        captures, rotations, offsets, eyes, model.Palette);
+                    int materialIndex = paletteIndex;
+                    if (materialIndex != previousMaterial)
                     {
-                        obj.Append("usemtl MV_").AppendLine(material.ToString());
-                        previousMaterial = (int)material;
+                        obj.Append("usemtl px_").AppendLine(materialIndex.ToString(CultureInfo.InvariantCulture));
+                        previousMaterial = materialIndex;
                     }
                     writer.Face(ids[face.A], ids[face.B], ids[face.C]);
                 }
@@ -89,9 +90,47 @@ namespace PixelCreatures.Core.Export
 
             (int featureVertices, int featureTriangles) = ObjMeshExporter.AppendFeatures(
                 obj, anatomy, writer.VertexCount, 20, 12, unitsPerPixel);
-            string mtl = MultiviewResult.MaterialLibrary(model.Palette);
+            string mtl = BuildMaterialLibrary(model.Palette);
             return new ObjMeshResult(obj.ToString(), mtl, writer.VertexCount + featureVertices,
                 writer.TriangleCount + featureTriangles);
+        }
+
+        private static byte PixelColorAt(Vec3 point, Vec3 normal, PixelDepthCapture[] captures,
+            Mat3[] rotations, Vec3[] offsets, Vec3[] eyes, CreaturePalette palette)
+        {
+            double bestFacing = 0;
+            byte selected = palette.Index(MaterialSlot.Primary, Shade.Base);
+            for (int view = 0; view < captures.Length; view++)
+            {
+                double facing = Vec3.Dot(normal, eyes[view]);
+                if (facing <= bestFacing) continue;
+                PixelDepthCapture capture = captures[view];
+                Vec3 projected = rotations[view].Mul(point) + offsets[view];
+                int x = (int)Math.Floor(capture.OriginX + projected.X);
+                int y = (int)Math.Floor(capture.OriginY - projected.Y);
+                if (x < 0 || y < 0 || x >= capture.Width || y >= capture.Height) continue;
+                int index = y * capture.Width + x;
+                if (!capture.Visible[index] || Math.Abs(capture.Depth[index] - projected.Z) > 3.0) continue;
+                selected = capture.PaletteIndex[index];
+                bestFacing = facing;
+            }
+            return selected;
+        }
+
+        private static string BuildMaterialLibrary(CreaturePalette palette)
+        {
+            var sb = new StringBuilder(MultiviewResult.MaterialLibrary(palette));
+            for (int index = CreaturePalette.FirstColorIndex; index < palette.Colors.Count; index++)
+            {
+                Rgba color = palette.Colors[index];
+                sb.Append("newmtl px_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine();
+                sb.Append("Kd ").Append((color.R / 255.0).ToString("F6", CultureInfo.InvariantCulture)).Append(' ')
+                    .Append((color.G / 255.0).ToString("F6", CultureInfo.InvariantCulture)).Append(' ')
+                    .Append((color.B / 255.0).ToString("F6", CultureInfo.InvariantCulture)).AppendLine();
+                sb.Append("d ").Append((color.A / 255.0).ToString("F6", CultureInfo.InvariantCulture)).AppendLine();
+                sb.AppendLine("Ka 0 0 0\nKs 0 0 0\nillum 1");
+            }
+            return sb.ToString();
         }
 
         private static string Sanitize(string value)
