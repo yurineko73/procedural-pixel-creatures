@@ -114,6 +114,11 @@ namespace PixelCreatures.Tests
             ctx.True(!first.Contains("NaN", StringComparison.Ordinal) &&
                 !first.Contains("Infinity", StringComparison.Ordinal),
                 "Reconstruction contains invalid coordinates");
+            if (model.Anatomy.Features.Count > 0)
+                ctx.True(first.Contains("o feature_", StringComparison.Ordinal),
+                    "Original 2D facial features must be restored as attached 3D geometry");
+            ctx.True(mesh.ExportedVertices >= mesh.Vertices.Count && mesh.ExportedTriangles >= mesh.Triangles.Count,
+                "Export statistics must include separately generated feature geometry");
             ctx.True(first.Contains("usemtl Primary", StringComparison.Ordinal) ||
                 first.Contains("usemtl Secondary", StringComparison.Ordinal),
                 "Reconstructed surfaces must preserve semantic anatomy material slots");
