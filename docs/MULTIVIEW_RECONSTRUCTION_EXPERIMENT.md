@@ -79,8 +79,8 @@ The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExpor
 - `MultiviewSilhouetteMetrics` rasterizes the reconstructed triangle silhouettes
   into each source camera and reports per-view/average/worst intersection-over-union.
   This tests *shape overlap only*, NOT facial fidelity or color quality.
-- The OBJ assigns semantic material slots from original primitive IDs and the final pixel palette. This preserves distinct materials and some pattern colors without assigning a different shade to every triangle. It is **not** a UV texture atlas, so detailed markings remain approximate.
-- The Godot viewer uses the project's existing **semantic toon material ramps**. The appended eye/nostril meshes use dedicated feature materials.
+- The OBJ assigns semantic material slots from original primitive IDs and the final pixel palette. This preserves broad material regions without assigning a different shade to every triangle. It is **not** a UV texture atlas, so detailed markings remain approximate and may still look patchy where a marking changes across camera views.
+- The reconstructed surface uses the source primitive's semantic material region with **smooth diffuse preview lighting**. Applying hard toon thresholds to a dense voxel-derived surface produced artificial contour stripes, so only this experimental path uses the smooth-lit `MV_*` material set. The appended eye/nostril meshes retain dedicated feature materials.
 
 
 ## Current boundaries / rejection conditions
