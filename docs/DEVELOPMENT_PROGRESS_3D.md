@@ -191,3 +191,16 @@ The screenshots include a `plantfolk` family, but the current tracked GitHub bra
 2. Re-test the exact screenshots' seeds, where reproducible, from front/side/rear views.
 3. Inspect biped headgear, pauldrons, teeth, claws, weapon floor clearance; quadruped hooves; reptile jaw/claws; arthropod legs; and the plantfolk family if its source is checked in.
 4. Verify the fusion did not over-smooth intended hard anatomy or merge separate horns/wings into the skin. P1 equipment expansion remains deferred until this pass is visually accepted.
+
+
+## 2026-10-20 — Eye attachment / appendage regression follow-up (committed, unverified)
+
+Continuation of P0 screenshot stabilization, on `feature/3d-modular-equipment`:
+
+- Fixed a remaining hole in `ImplicitBodyMesher.ShouldUnify`: independent horns, antennae, tentacles, eye-stalks and other separately grouped appendages must stay independent for **all** palette materials, including Primary/Secondary. The previous filtering applied appendage-name exclusions only to Accent/White, so changing the palette could silently alter geometry.
+- `PreviewAttachmentRepair`: microscale claws/fangs/teeth with **no eligible supporting host** are omitted from the static OBJ instead of silently keeping floating geometry. Larger intentional anatomy remains.
+- New `PreviewFeatureFit.cs`: caps nominal eye-stamp size to a same-bone host ellipsoid, detects eligible bare eye-stalk ends with a nearby segment and requests a supporting primary-colour bulb without changing the 2D source.
+- `ObjMeshExporter.cs`: generates those bare-stalk backing bulbs and applies bounded whole-eye position correction (socket/iris/pupil/shine share the same offset) for slightly detached cranium eyes; does not snap distant features to unrelated geometry.
+- New smoke tests: `export.preview_standalone_appendage_materials`, `export.preview_eyestalk_bulb_fit`, `export.preview_eye_surface_projection`, `export.preview_reported_seed_regressions` (reported biped, quadruped, reptile, arthropod and amorphous body seeds). Existing eye-size and equipment-fit regressions retained.
+
+**Verification:** inspected changed source for balanced delimiters and consistency. A local `git ls-remote` attempt failed DNS resolution of github.com; there is no `dotnet`, `csc`, or `godot` executable in this runtime. Therefore the tests were added **but not actually executed** and the visual defects cannot be declared resolved. Do not enable GitHub Actions to work around this (workflow was previously paused). Next: run full CoreHarness and Godot 4.7.1 locally, inspect exact problematic seed/style combinations in three views; record actual pass/fail, fix any compile or visual regression, then reassess P1 equipment expansion.
