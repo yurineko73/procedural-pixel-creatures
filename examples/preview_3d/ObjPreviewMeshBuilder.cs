@@ -175,6 +175,24 @@ void light() {
 
         private static Material CreateMaterial(string materialName, CreaturePalette palette)
         {
+            // The multi-view mesh already derives its material regions from the original 2D
+            // renderer. Re-lighting those regions with hard toon thresholds creates false contour
+            // stripes on a dense reconstructed surface, so use smooth diffuse lighting here.
+            if (materialName.StartsWith("MV_", StringComparison.Ordinal) &&
+                Enum.TryParse(materialName.Substring(3), out MaterialSlot reconstructedSlot) &&
+                reconstructedSlot != MaterialSlot.Count)
+            {
+                Rgba color = palette.Color(reconstructedSlot, Shade.Base);
+                return new StandardMaterial3D
+                {
+                    ShadingMode = BaseMaterial3D.ShadingModeEnum.PerPixel,
+                    CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                    AlbedoColor = new Color(color.R / 255f, color.G / 255f, color.B / 255f, color.A / 255f),
+                    Roughness = 1.0f,
+                    Specular = 0.0f,
+                };
+            }
+
             // Reconstructed preview material is a pixel color measured by the original 2D renderer,
             // not a conventional light-dependent material ramp. Avoid recolouring that measurement.
             if (materialName.StartsWith("px_", StringComparison.Ordinal) &&
