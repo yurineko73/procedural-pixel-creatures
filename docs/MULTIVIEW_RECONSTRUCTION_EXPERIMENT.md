@@ -16,6 +16,8 @@ This is a **separate geometry-generation experiment**, not another adjustment to
 5. The left panel shows an **actual original 2D pixel image** from the first view.
    The right panel shows the **new multi-view reconstructed 3D mesh**. Disable the
    option to see the old OBJ/SDF path with the same seed. Drag to rotate the 3D.
+   Use **对齐原版 2D 摄像机（0° / 30°）** to switch the right-hand camera to a
+   matching orthographic orientation (pixel scale still depends on viewport).
 6. The Export button writes `creature.obj` and `creature.mtl` to
    `user://exports/3d-preview/`.
 
@@ -33,7 +35,7 @@ dotnet run --project tools/core_harness/CoreHarness.csproj -- \
   multiview out/multiview biped 12345 16 1.2
 ```
 
-Output: `out/multiview/creature.obj` plus `creature.mtl`.
+Output: `out/multiview/creature.obj`, `creature.mtl`, and `silhouette_iou.txt`.
 The last two arguments control view count and requested grid spacing. The grid
 automatically coarsens to obey the 320,000-grid-node memory budget.
 
@@ -79,6 +81,9 @@ and cleanup, subject to a bounded tolerance.
   not protrude in front of any observed raster depth beyond `DepthSlack`.
 - A bounded 3D grid samples the resulting intersection field. Marching
   tetrahedra with shared edge vertices produces an OBJ surface.
+- `MultiviewSilhouetteMetrics` rasterizes the reconstructed triangle silhouettes
+  into each source camera and reports per-view/average/worst intersection-over-union.
+  This tests *shape overlap only*, NOT facial fidelity or color quality.
 - The OBJ assigns face palette materials by selecting a source-visible
   pixel near each face with a consistent normal and similar depth. These
   colors are **view samples**; they are *not* a high quality UV texture atlas.
@@ -110,7 +115,7 @@ This proof of concept does NOT guarantee better visual quality. In particular:
    pixel-perfect synchronized replica of the original oblique orthographic
    camera; manual camera matching is approximate.
 
-**Acceptance:** first prove the fixed biped seeds look materially better
+**Acceptance:** compare per-direction silhouette IoU AND visually inspect ears, mouth, eyes, claws and intermediate free-rotation views; first prove the fixed biped seeds look materially better
 than the old export, including eye/mouth/ear connection. If this fails,
 **do not replace** the old path with this method. Next steps would require
 per-part depth masks, higher-resolution local reconstruction, back-side
