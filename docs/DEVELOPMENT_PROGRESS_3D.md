@@ -140,3 +140,26 @@ Further source changes committed:
 ## Final preview seam refinement (2026-10-19)
 
 The OBJ-to-Godot builder now calculates vertex normals across the complete OBJ before splitting geometry into per-material surfaces. This avoids sharp artificial normal seams where the fused body changes from Primary to Secondary material. The shader remains opaque and depth-writing. This is still awaiting an actual Godot scene run.
+
+
+## P0 attachment and garment stabilization (2026-10-20)
+
+**Implementation: committed to `feature/3d-modular-equipment`; validation: source-level only (build / CoreHarness / Godot visual test pending).** These changes are intentionally limited to the *static 3D export* so original 2D generation genes and animation definitions remain intact.
+
+- Added `Core/Export/PreviewAttachmentRepair.cs`: for small `.claw`, `.teeth` and `.fangs` cone details, match a valid ellipsoid on the same bone; modestly detached tips are shifted inward into the host surface, while distant unsupported pieces are omitted. The immutable source primitive is never mutated, and anatomy with no suitable host is preserved.
+- Added `Core/Export/PreviewEquipmentSockets.cs`: legacy biped and modern/scifi/wasteland held-weapon shapes are reoriented around a hand-local grip for the preview and shortened when their resting shaft would fall under the display floor. Native shield subparts are moved as a group toward the left forearm, with size limited by ground clearance. Source transforms/2D rig remain unchanged.
+- Added `Core/Export/PreviewMeshCleaner.cs`: a conservative connected-component pass on the *fused* SDF skin/clothing mesh removes only tiny low-face-count and low-extent stray islands. Large disconnected anatomy, hard details and deliberate separate equipment pieces are preserved.
+- Added `Core/Export/PreviewGarmentFit.cs`: for narrow-hip or exceptionally long-legged bipeds, hanging skirt/loincloth panels can be replaced by a short pelvis-fitted cloth hem; replaces only the identified groups without modifying original 2D outfit genes. This is a preview stability fallback, not a finished tailoring/cloth-simulation system.
+- `Core/Export/ObjMeshExporter.cs` now incorporates the attachment repair, socket transforms, mesh cleanup and garment downgrade before emitting the static OBJ.
+- `Core/Equipment/EquipmentPacks.cs` now preserves the chest shell's local rotation when generating a `Cover` for modern/scifi outfits, addressing geometry misalignment.
+- `tests/Core/CoreTests.cs` adds four named regressions: `export.preview_attached_claws_and_teeth`, `export.preview_weapon_hand_socket`, `export.preview_extreme_garment_fallback`, `export.preview_tiny_sdf_island_cleanup`.
+
+### Required validation before claiming P0 complete
+
+1. Build `.NET 8` CoreHarness and the Godot 4.7.1 .NET solution; run all CoreHarness tests including the four named regressions.
+2. Reopen `examples/preview_3d/CreaturePreview3D.tscn`, inspect user-supplied problematic biped seeds from at least front/side/rear angles, with/without equipment, and across Fantasy, Modern, Sci-Fi and Wasteland.
+3. Check whether claws/fangs still float, shields and weapon shafts still hit the floor, thin fabric appears shredded, or the short-hem downgrade triggers too often. Do not remove valid wings/spines/eyes as 'debris'.
+4. Open OBJ/MTL in Blender and check raw object groups. Current exporter still produces a static rest-pose prototype, **not** a finished rigged/animated/clothed GLB asset.
+
+### Scope / next phase
+P1 equipment catalogue expansion is **deferred**, not cancelled. First obtain green compilation/visual verification and tune P0 thresholds if necessary. Then expand curated equipment variants per slot (fantasy first, then modern/scifi/wasteland) with attachment socket and collision fit tests.
