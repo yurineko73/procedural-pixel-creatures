@@ -294,3 +294,9 @@ User feedback was correct: do not redesign the creature system. Reuse the comple
 
 Do not mark the 3D visual work complete yet.
 
+
+
+### Follow-up refinement
+
+Horn/ear root embedding now scales with the actual appendage root radius rather than forcing every root to a fixed percentage of the skull. Horn eye-clearance offsets are followed by a root re-seat, repeated for up to three small corrections, so avoiding an eye does not simply pull the horn free of the cranium. The horn regression also checks that the root remains inside the skull after eye avoidance.
+
