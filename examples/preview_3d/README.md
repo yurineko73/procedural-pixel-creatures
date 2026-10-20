@@ -67,3 +67,10 @@ The OBJ preview builder also computes shared normals before material splitting, 
 The 3D-only OBJ pipeline now includes same-bone projection for displaced tiny claws/teeth, hand/grip and forearm-centered equipment socket transforms, conservative tiny SDF-island cleanup, and a short fitted garment fallback for proportionally extreme bipeds. Modern/scifi chest covers also inherit the host shell rotation. The original 2D anatomy/animations/seed system are not changed by these export fixes.
 
 Reopen this scene after pulling the development branch. Try the same Body Seed/Equipment Seed with all four style choices and inspect front/side/rear, especially hands, feet, face, weapon grip and skirt edges. This update remains **unverified in Godot** until it is compiled and visually checked; the model is still static (no skinning, animation or actual fabric simulation).
+
+
+## Screenshot-driven stability follow-up (2026-10-20)
+
+The latest export pass fuses soft Accent/White anatomy and Faceted core body primitives into the organic skin to reduce overlapping shells and visible joints. Material attribution now discounts deeply buried shapes; tiny-island cleanup is limited to the body mesh so separate skirt/flap panels are preserved. Claws, teeth, fangs and hooves can be fitted against ancestor limb segments. Long spears/staves are scaled to the floor clearance available at the hand. Caps/helmets are raised above the eyes, hoods moved behind the face, and pauldrons seated closer to the shoulder.
+
+New regression tests were added, but **the branch is not yet verified by a .NET build or Godot visual run**. Recheck all problematic seeds from at least front/side/rear, including quadruped hooves, reptile mouth/feet, arthropod legs and biped headgear. The screenshot includes `plantfolk`, but no PlantfolkFamily source is currently tracked in this branch; the shared exporter changes apply once that family's anatomy reaches the exporter.
