@@ -49,6 +49,7 @@ namespace PixelCreatures.Tests
             r.Run("export.preview_fuses_soft_accent_and_faceted_skin", ctx => PreviewSkinUnionSmoke(ctx));
             r.Run("export.preview_standalone_appendage_materials", ctx => PreviewStandaloneAppendageSmoke(ctx));
             r.Run("export.preview_eyestalk_bulb_fit", ctx => PreviewEyeStalkSmoke(ctx));
+            r.Run("export.preview_eye_surface_projection", ctx => PreviewEyeSurfaceProjectionSmoke(ctx));
             r.Run("export.preview_headgear_eye_clearance", ctx => PreviewHeadgearClearanceSmoke(ctx));
             r.Run("export.preview_eye_stamp_scale", ctx => PreviewEyeStampScaleSmoke(ctx));
             r.Run("export.preview_weapon_hand_socket", ctx => PreviewSocketSmoke(ctx));
@@ -295,6 +296,33 @@ namespace PixelCreatures.Tests
             var normalFit = PreviewFeatureFit.Evaluate(b2.Build(1), normalEye);
             ctx.True(!normalFit.NeedsBacking && normalFit.Size <= 2.4,
                 "eyes on an existing skull should scale to the skull instead of growing another bulb");
+        }
+
+        private static void PreviewEyeSurfaceProjectionSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 112);
+            int head = b.Bone("head", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Head);
+            int headGroup = b.Group("head", 0.7);
+            b.Ellipsoid(headGroup, head, Vec3.Zero, new Vec3(3, 3, 3), MaterialSlot.Primary)
+                .Tag = "head.cranium";
+            var eye = new FeatureDef
+            {
+                Kind = FeatureKind.Eye, Bone = head,
+                LocalPosition = new Vec3(0, 0, 3.55),
+                LocalNormal = Vec3.UnitZ, Size = 2,
+                Style = EyeStyle.Round, Group = headGroup
+            };
+            b.Feature(eye);
+            var a = b.Build(1);
+            var fitted = PreviewFeatureFit.Evaluate(a, eye);
+            ctx.True(fitted.WorldOffset.Z < -0.45 && fitted.WorldOffset.Z > -0.7,
+                "a slightly floating eyeball should be moved back onto the cranium");
+            ctx.True(!fitted.NeedsBacking, "an eye on a cranium must not get an extra eyeball");
+            ctx.True(eye.LocalPosition.Z == 3.55, "export-only eye adjustment cannot mutate 2D data");
+            eye.LocalPosition = new Vec3(0, 0, 6);
+            var far = PreviewFeatureFit.Evaluate(a, eye);
+            ctx.True(far.WorldOffset.LengthSquared < 1e-12,
+                "a far-away eye must not be snapped across empty space to an unrelated surface");
         }
 
         private static void PreviewHeadgearClearanceSmoke(TestContext ctx)
