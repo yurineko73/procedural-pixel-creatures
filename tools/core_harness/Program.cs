@@ -87,8 +87,8 @@ namespace PixelCreatures.Harness
                     average /= overlap.Length;
                     Directory.CreateDirectory(outDir);
                     File.WriteAllText(Path.Combine(outDir, "silhouette_iou.txt"),
-                        $"Mean: {average:P2}\\nWorst: {worst:P2}\\n" +
-                        string.Join("\\n", Array.ConvertAll(overlap, score => score.ToString("F4", System.Globalization.CultureInfo.InvariantCulture))));
+                        $"Mean: {average:P2}\nWorst: {worst:P2}\n" +
+                        string.Join("\n", Array.ConvertAll(overlap, score => score.ToString("F4", System.Globalization.CultureInfo.InvariantCulture))));
                     File.WriteAllText(Path.Combine(outDir, "creature.obj"), mesh.ToObj(captures, model.Palette));
                     File.WriteAllText(Path.Combine(outDir, "creature.mtl"), MultiviewResult.MaterialLibrary(model.Palette));
                     Console.WriteLine($"Multiview reconstruction: {mesh.Vertices.Count} vertices / {mesh.Triangles.Count} triangles");
