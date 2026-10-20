@@ -59,8 +59,7 @@ Old path:
 
 New path:
 `CreatureAnatomy -> original CreatureRenderer 16 direction rasterization ->
-post-cleanup G-buffer depth/silhouette/primitive provenance -> multi-view
-depth/silhouette intersection field -> marching tetrahedra -> mesh -> OBJ`.
+post-cleanup G-buffer depth/silhouette/primitive provenance -> multi-view visual hull + truncated front-depth constraints -> marching tetrahedra -> mesh -> OBJ`.
 
 The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExporter.Export`. It uses rendered depth, normals and silhouettes as geometric constraints. The separate eye/pupil/highlight/nostril meshes reuse `ObjMeshExporter.AppendFeatures` and its existing `PreviewFeatureFit` solely to position those details.
 
@@ -83,12 +82,12 @@ The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExpor
 
 ## Current boundaries / rejection conditions
 
-The screenshot review found severe faceting and missing facial structure. The branch now applies a gentle field-smoothing pass, source-normal tangent constraints, semantic material assignment and explicit bone-anchored facial-feature meshes. These are targeted fixes, not yet visually verified. This proof of concept does NOT guarantee better visual quality. In particular:
+The screenshot review found severe faceting and missing facial structure. The first screenshot-driven revision regressed badly: source-normal tangent-plane constraints fragmented limbs and produced a low silhouette IoU. They have been removed. The current branch instead builds a conservative silhouette visual hull and applies depth only within a truncation band near each observed front surface; hidden interior samples no longer carve through the body. Voxel spacing is finer and default field smoothing is disabled to retain thin anatomy. This correction is not yet visually verified. This proof of concept does NOT guarantee better visual quality. In particular:
 
 1. **2D G-buffer depth is synthetic.** Soft screen-space unions and depth
    bias can make independent views geometrically inconsistent. The current
    tolerance makes intersections possible; it is not an optimization solver
-   yet. A strict multi-view match might be mathematically impossible.
+   yet. A strict multi-view match might be mathematically impossible. Depth constraints are deliberately truncated: they refine the observed surface but do not define the entire hidden interior.
 2. **Occlusion:** A hidden ear root, mouth interior, occluded tooth or underside
    cannot be reconstructed from visible pixels alone. Anatomical priors and
    bone-constrained reconstruction are still required for a usable final model.
@@ -107,8 +106,7 @@ The screenshot review found severe faceting and missing facial structure. The br
 **Acceptance:** compare per-direction silhouette IoU AND visually inspect ears, mouth, eyes, claws and intermediate free-rotation views; first prove the fixed biped seeds look materially better
 than the old export, including eye/mouth/ear connection. If this fails,
 **do not replace** the old path with this method. Next steps would require
-per-part depth masks, higher-resolution local reconstruction, back-side
-anatomy priors and a differentiable multi-view consistency objective.
+per-part depth masks, back-side anatomy priors and a multi-view consistency objective.
 
 This experiment deliberately does not claim that a single ordinary textured
 mesh can exactly reproduce all view-dependent pixel cleanup rules.
