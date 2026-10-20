@@ -22,10 +22,12 @@ namespace PixelCreatures.Core.Export
         public double DepthSlack = 0.3;
         /// <summary>Ignore a front-depth sample once a voxel lies this far behind it (occluded interior).</summary>
         public double DepthTruncation = 3.0;
-        /// <summary>Optional scalar-field smoothing passes. Disabled by default to retain thin anatomy.</summary>
-        public int FieldSmoothingPasses = 0;
+        /// <summary>Edge-aware smoothing strength for the captured depth image (0..1).</summary>
+        public double DepthSmoothingStrength = 0.4;
+        /// <summary>One gentle scalar-field smoothing pass reduces voxel-grid corrugation.</summary>
+        public int FieldSmoothingPasses = 1;
         /// <summary>Blend of a 1-2-1 neighborhood filter into the field (0..1).</summary>
-        public double FieldSmoothingStrength = 0.2;
+        public double FieldSmoothingStrength = 0.18;
     }
 
     public sealed class MultiviewResult
@@ -129,6 +131,7 @@ namespace PixelCreatures.Core.Export
         {
             public PixelDepthCapture Capture = null!;
             public float[] Distance = Array.Empty<float>();
+            public float[] SmoothedDepth = Array.Empty<float>();
             public Mat3 Transform;
             public Vec3 Offset;
             public Vec3 CameraToSurface;
@@ -162,6 +165,7 @@ namespace PixelCreatures.Core.Export
             if (captures == null || captures.Length < 4) throw new ArgumentException("At least four views are required.", nameof(captures));
             if (options.GridStep <= 0 || options.MaxGridPoints < 1000 ||
                 options.SilhouetteSlack < 0 || options.DepthSlack < 0 || options.DepthTruncation <= 0 ||
+                options.DepthSmoothingStrength < 0 || options.DepthSmoothingStrength > 1 ||
                 options.FieldSmoothingPasses < 0 || options.FieldSmoothingStrength < 0 || options.FieldSmoothingStrength > 1)
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid reconstruction resolution or tolerance.");
             var views = new ViewData[captures.Length];
@@ -176,7 +180,8 @@ namespace PixelCreatures.Core.Export
                     Capture = cap, Transform = worldToView,
                     Offset = PixelCamera.WorldToView(cap.View.Elevation).Mul(cap.View.RootOffset),
                     CameraToSurface = worldToView.Transposed.Mul(Vec3.UnitZ),
-                    Distance = SignedSilhouetteDistance(cap)
+                    Distance = SignedSilhouetteDistance(cap),
+                    SmoothedDepth = SmoothVisibleDepth(cap, options.DepthSmoothingStrength)
                 };
                 for (int y = 0; y < cap.Height; y++)
                     for (int x = 0; x < cap.Width; x++)
@@ -329,13 +334,20 @@ namespace PixelCreatures.Core.Export
             {
                 Vec3 v = view.Transform.Mul(point) + view.Offset;
                 var cap = view.Capture;
-                int x = (int)Math.Floor(cap.OriginX + v.X);
-                int y = (int)Math.Floor(cap.OriginY - v.Y);
-                if (x < 0 || y < 0 || x >= cap.Width || y >= cap.Height)
+                double screenX = cap.OriginX + v.X;
+                double screenY = cap.OriginY - v.Y;
+                if (screenX < 0 || screenY < 0 || screenX >= cap.Width || screenY >= cap.Height)
                     return 5.0; // outside a recorded viewport cannot be reconstructed reliably
+                int x = (int)Math.Floor(screenX);
+                int y = (int)Math.Floor(screenY);
 
+                // Sample at continuous pixel-centre coordinates. Nearest-pixel lookup makes
+                // the 3D scalar field jump once per source pixel, which becomes corrugation after
+                // marching tetrahedra. Bilinear sampling keeps the silhouette constraint continuous.
+                double sampleX = screenX - 0.5;
+                double sampleY = screenY - 0.5;
                 int i = y * cap.Width + x;
-                double silhouetteDistance = view.Distance[i];
+                double silhouetteDistance = SampleBilinear(view.Distance, cap.Width, cap.Height, sampleX, sampleY);
                 double bound = silhouetteDistance - options.SilhouetteSlack;
                 // Keep the outer pixel band governed by silhouette alone. The 2D renderer's
                 // depth bias and screen-space fillets are not a consistent 3D surface at edges;
@@ -345,7 +357,9 @@ namespace PixelCreatures.Core.Export
                     // +Z points toward the camera: a voxel in front of the measured surface is
                     // outside; a voxel behind it may simply be occluded, so ignore it past the
                     // truncation band instead of carving away the object's hidden interior.
-                    double depthDelta = v.Z - cap.Depth[i];
+                    double measuredDepth = SampleDepthBilinear(cap, view.SmoothedDepth,
+                        sampleX, sampleY, cap.Group[i], cap.Depth[i]);
+                    double depthDelta = v.Z - measuredDepth;
                     if (depthDelta > -options.DepthTruncation)
                         bound = Math.Max(bound, depthDelta - options.DepthSlack);
                 }
@@ -353,6 +367,79 @@ namespace PixelCreatures.Core.Export
                 if (field > 2.0) return field;
             }
             return field;
+        }
+
+        /// <summary>
+        /// Lightly smooth depth only within the same visible semantic group. A depth edge caused by
+        /// an occluding limb or a different part is not averaged into its neighbour.
+        /// </summary>
+        private static float[] SmoothVisibleDepth(PixelDepthCapture cap, double strength)
+        {
+            int width = cap.Width, height = cap.Height, count = width * height;
+            var result = new float[count];
+            Array.Copy(cap.Depth, result, count);
+            if (strength <= 0) return result;
+
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int i = y * width + x;
+                if (!cap.Visible[i] || !DMath.IsFinite(cap.Depth[i])) continue;
+                double center = cap.Depth[i], weighted = 0, total = 0;
+                byte group = cap.Group[i];
+                for (int oy = -1; oy <= 1; oy++)
+                for (int ox = -1; ox <= 1; ox++)
+                {
+                    int sx = x + ox, sy = y + oy;
+                    if (sx < 0 || sy < 0 || sx >= width || sy >= height) continue;
+                    int j = sy * width + sx;
+                    if (!cap.Visible[j] || cap.Group[j] != group || !DMath.IsFinite(cap.Depth[j])) continue;
+                    double sample = cap.Depth[j];
+                    // Preserve actual occlusion boundaries even when both parts share a group.
+                    if (Math.Abs(sample - center) > 1.75) continue;
+                    double weight = (ox == 0 ? 2.0 : 1.0) * (oy == 0 ? 2.0 : 1.0);
+                    weighted += sample * weight;
+                    total += weight;
+                }
+                if (total > 0)
+                    result[i] = (float)(center + (weighted / total - center) * strength);
+            }
+            return result;
+        }
+
+        private static double SampleBilinear(float[] values, int width, int height, double x, double y)
+        {
+            x = Math.Max(0, Math.Min(width - 1, x));
+            y = Math.Max(0, Math.Min(height - 1, y));
+            int x0 = (int)Math.Floor(x), y0 = (int)Math.Floor(y);
+            int x1 = Math.Min(width - 1, x0 + 1), y1 = Math.Min(height - 1, y0 + 1);
+            double tx = x - x0, ty = y - y0;
+            double a = values[y0 * width + x0] * (1.0 - tx) + values[y0 * width + x1] * tx;
+            double b = values[y1 * width + x0] * (1.0 - tx) + values[y1 * width + x1] * tx;
+            return a * (1.0 - ty) + b * ty;
+        }
+
+        private static double SampleDepthBilinear(PixelDepthCapture cap, float[] depth,
+            double x, double y, byte group, double fallback)
+        {
+            x = Math.Max(0, Math.Min(cap.Width - 1, x));
+            y = Math.Max(0, Math.Min(cap.Height - 1, y));
+            int x0 = (int)Math.Floor(x), y0 = (int)Math.Floor(y);
+            int x1 = Math.Min(cap.Width - 1, x0 + 1), y1 = Math.Min(cap.Height - 1, y0 + 1);
+            double tx = x - x0, ty = y - y0, weighted = 0, total = 0;
+            void Add(int sx, int sy, double weight)
+            {
+                if (weight <= 0) return;
+                int i = sy * cap.Width + sx;
+                if (!cap.Visible[i] || cap.Group[i] != group || !DMath.IsFinite(depth[i])) return;
+                weighted += depth[i] * weight;
+                total += weight;
+            }
+            Add(x0, y0, (1.0 - tx) * (1.0 - ty));
+            Add(x1, y0, tx * (1.0 - ty));
+            Add(x0, y1, (1.0 - tx) * ty);
+            Add(x1, y1, tx * ty);
+            return total > 1e-8 ? weighted / total : fallback;
         }
 
         // Approximate signed pixel distance; zero-crossing lies midway between foreground/background.
