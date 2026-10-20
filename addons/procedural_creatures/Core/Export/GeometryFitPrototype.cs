@@ -142,7 +142,7 @@ namespace PixelCreatures.Core.Export
             double scaleStep = options.ScaleStep;
             double offsetStep = options.OffsetStep;
 
-            // Coordinate descent over a very small, regularized parameter set. Each accepted
+            // Coordinate descent over a very small, bounded parameter set. Each accepted
             // change must improve a score that values both average and worst-view silhouette IoU.
             for (int pass = 0; pass < options.Passes; pass++)
             {
