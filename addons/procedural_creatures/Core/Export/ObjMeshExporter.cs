@@ -151,6 +151,26 @@ namespace PixelCreatures.Core.Export
             return new ObjMeshResult(obj.ToString(), BuildDefaultMaterials(), emitter.VertexCount, emitter.TriangleCount);
         }
 
+        /// <summary>
+        /// Appends the original anatomy's fitted 3D facial/detail features to an existing OBJ stream.
+        /// Vertex indices are offset so these details can share one file with a reconstructed body.
+        /// </summary>
+        public static (int Vertices, int Triangles) AppendFeatures(StringBuilder obj, CreatureAnatomy anatomy,
+            int existingVertexCount, int sides = 20, int rings = 12, double unitsPerPixel = 0.01)
+        {
+            if (obj == null) throw new ArgumentNullException(nameof(obj));
+            if (anatomy == null) throw new ArgumentNullException(nameof(anatomy));
+            if (existingVertexCount < 0) throw new ArgumentOutOfRangeException(nameof(existingVertexCount));
+            if (sides < 6 || sides > 128) throw new ArgumentOutOfRangeException(nameof(sides));
+            if (rings < 4 || rings > 128) throw new ArgumentOutOfRangeException(nameof(rings));
+            if (!DMath.IsFinite(unitsPerPixel) || unitsPerPixel <= 0)
+                throw new ArgumentOutOfRangeException(nameof(unitsPerPixel));
+            var emitter = new MeshEmitter(obj, unitsPerPixel, existingVertexCount);
+            for (int index = 0; index < anatomy.Features.Count; index++)
+                EmitFeature(obj, emitter, anatomy, anatomy.Features[index], index, sides, rings);
+            return (emitter.VertexCount, emitter.TriangleCount);
+        }
+
         private static void EmitFeature(StringBuilder obj, MeshEmitter emitter, CreatureAnatomy anatomy,
             FeatureDef feature, int index, int sides, int rings)
         {
@@ -321,9 +341,11 @@ namespace PixelCreatures.Core.Export
         {
             private readonly StringBuilder _obj;
             private readonly double _scale;
+            private readonly int _baseVertexOffset;
             public int VertexCount { get; private set; }
             public int TriangleCount { get; private set; }
-            public MeshEmitter(StringBuilder obj, double scale) { _obj = obj; _scale = scale; }
+            public MeshEmitter(StringBuilder obj, double scale, int baseVertexOffset = 0)
+            { _obj = obj; _scale = scale; _baseVertexOffset = baseVertexOffset; }
 
             private static string F(double value) => value.ToString("0.########", CultureInfo.InvariantCulture);
 
@@ -332,7 +354,7 @@ namespace PixelCreatures.Core.Export
                 if (!point.IsFinite) throw new InvalidOperationException("Nonfinite OBJ coordinate");
                 _obj.Append("v ").Append(F(point.X * _scale)).Append(' ')
                     .Append(F(point.Y * _scale)).Append(' ').Append(F(point.Z * _scale)).AppendLine();
-                return ++VertexCount;
+                return _baseVertexOffset + ++VertexCount;
             }
 
             private void Face(int a, int b, int c)
