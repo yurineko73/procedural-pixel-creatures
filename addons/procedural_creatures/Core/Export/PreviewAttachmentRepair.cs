@@ -107,7 +107,10 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
-            if (embedded || bestHost == null) return true;
+            if (embedded) return true;
+            // For truly tiny claws and teeth, no eligible host is the strongest signal that
+            // the detail is a floating fragment. Preserve larger tusks and hoof variations.
+            if (bestHost == null) return !strictTinyPart;
 
             double maxCorrection = strictTinyPart
                 ? Math.Max(0.85, Math.Min(2.8, bestHostRadius * 0.45))
