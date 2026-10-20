@@ -148,12 +148,17 @@ namespace PixelCreatures.Tests
                 ExportSides = 8,
                 ExportRings = 4,
                 UnitsPerPixel = 0.04,
+                MaxMeshEvaluations = 5,
+                MaxRegions = 6,
             });
 
             ctx.True(fit.ReferenceViews.Length == 4, "Geometry fit must compare the requested number of reference views");
             ctx.True(fit.Anatomy.Primitives.Count == model.Anatomy.Primitives.Count,
                 "Geometry fitting must preserve the source primitive inventory");
-            ctx.True(fit.Evaluations >= 1, "Geometry fit must report its objective evaluations");
+            ctx.True(fit.Evaluations >= 1 && fit.Evaluations <= 5,
+                "Geometry fit must respect its bounded actual-OBJ evaluation budget");
+            ctx.True(fit.ProxyEvaluations >= 1,
+                "Geometry fit must report proxy evaluations separately from actual OBJ evaluations");
             ctx.True(!double.IsNaN(fit.InitialMeanIoU) && !double.IsInfinity(fit.InitialMeanIoU) &&
                 fit.InitialMeanIoU >= 0 && fit.InitialMeanIoU <= 1,
                 "Initial primitive-projection IoU must be finite and normalized");
@@ -172,10 +177,13 @@ namespace PixelCreatures.Tests
                 !fit.FittedMesh.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                 !fit.FittedMesh.ObjText.Contains("Infinity", StringComparison.Ordinal),
                 "Fitted OBJ must contain finite mesh geometry");
-            double initialScore = fit.InitialMeanIoU * 0.7 + fit.InitialWorstIoU * 0.3;
-            double fittedScore = fit.FittedMeanIoU * 0.7 + fit.FittedWorstIoU * 0.3;
-            ctx.True(fittedScore + 1e-8 >= initialScore,
-                "The bounded coordinate search must not return a worse multi-view silhouette score");
+            double initialMeshScore = fit.InitialMeshMeanIoU * 0.7 + fit.InitialMeshWorstIoU * 0.3;
+            double fittedMeshScore = fit.FittedMeshMeanIoU * 0.7 + fit.FittedMeshWorstIoU * 0.3;
+            ctx.True(fittedMeshScore + 1e-8 >= initialMeshScore,
+                "The fitter must never keep a candidate whose actual exported-OBJ silhouette score is worse");
+            ObjMeshResult rebuilt = ObjMeshExporter.Export(fit.Anatomy, 8, 4, 0.04);
+            ctx.True(rebuilt.ObjText == fit.FittedMesh.ObjText,
+                "The displayed fitted OBJ must correspond exactly to the returned fitted anatomy");
             foreach (PrimitiveDef primitive in fit.Anatomy.Primitives)
                 ctx.True(primitive.LocalA.IsFinite && primitive.LocalB.IsFinite && primitive.LocalC.IsFinite &&
                     primitive.Radii.IsFinite,
