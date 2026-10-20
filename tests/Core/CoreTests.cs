@@ -41,6 +41,7 @@ namespace PixelCreatures.Tests
             r.Run("motion.turning_in_place_reorients_body", ctx => TurnInPlace(ctx, registry, factory));
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
+            r.Run("export.preview_reported_seed_regressions", ctx => PreviewScreenshotSeedsSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
@@ -84,6 +85,38 @@ namespace PixelCreatures.Tests
                 }
                 ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                     !first.ObjText.Contains("Infinity", StringComparison.Ordinal), family.Id + ": nonfinite OBJ values");
+            }
+        }
+
+        private static void PreviewScreenshotSeedsSmoke(TestContext ctx, CreatureRegistry reg)
+        {
+            // These are resolved Body Seeds shown in user-reported multi-family screenshots
+            // of detached claws, face pieces, hoof shells and arthropod appendages. Equipment
+            // is independently seeded in the UI; that second dimension has separate tests.
+            var cases = new (string Family, ulong BodySeed)[]
+            {
+                ("biped", 1120767436259506315UL),
+                ("biped", 479287935487803784UL),
+                ("quadruped", 6484199581679128020UL),
+                ("reptile", 5588374102731924563UL),
+                ("arthropod", 17995465277924679519UL),
+                ("amorphous", 12144879715512382633UL),
+            };
+            foreach (var testCase in cases)
+            {
+                var family = reg.Families.First(f => f.Id == testCase.Family);
+                var genome = GenomeFactory.Sample(family, testCase.BodySeed);
+                var anatomy = family.BuildAnatomy(genome, reg);
+                var first = ObjMeshExporter.Export(anatomy, 8, 4);
+                var second = ObjMeshExporter.Export(anatomy, 8, 4);
+                string description = testCase.Family + " seed " + testCase.BodySeed;
+                ctx.True(first.Triangles > 0, description + ": missing preview mesh");
+                ctx.True(first.ObjText == second.ObjText, description + ": nondeterministic OBJ");
+                ctx.True(first.ObjText.Contains("o organic_body_", StringComparison.Ordinal),
+                    description + ": no fused organic skin");
+                ctx.True(!first.ObjText.Contains("NaN", StringComparison.Ordinal) &&
+                    !first.ObjText.Contains("Infinity", StringComparison.Ordinal),
+                    description + ": invalid exported vertex");
             }
         }
 
