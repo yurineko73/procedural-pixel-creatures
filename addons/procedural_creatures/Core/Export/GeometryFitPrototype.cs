@@ -25,6 +25,9 @@ namespace PixelCreatures.Core.Export
         public int ExportSides = 20;
         public int ExportRings = 12;
         public double UnitsPerPixel = 0.04;
+        // Includes the baseline OBJ evaluation. A hard budget keeps the editor preview responsive.
+        public int MaxMeshEvaluations = 32;
+        public int MaxRegions = 6;
     }
 
     public sealed class GeometryFitResult
@@ -40,14 +43,17 @@ namespace PixelCreatures.Core.Export
         public double FittedMeshMeanIoU { get; }
         public double InitialMeshWorstIoU { get; }
         public double FittedMeshWorstIoU { get; }
+        /// <summary>Number of actual OBJ meshes evaluated, including the unmodified baseline.</summary>
         public int Evaluations { get; }
+        /// <summary>Number of cheap primitive-projection evaluations used to guide search direction.</summary>
+        public int ProxyEvaluations { get; }
         public int AdjustedRegions { get; }
         public string ParameterSummary { get; }
 
         internal GeometryFitResult(CreatureAnatomy anatomy, ObjMeshResult fittedMesh, PixelDepthCapture[] referenceViews,
             double initialMeanIoU, double fittedMeanIoU, double initialWorstIoU, double fittedWorstIoU,
             double initialMeshMeanIoU, double fittedMeshMeanIoU, double initialMeshWorstIoU, double fittedMeshWorstIoU,
-            int evaluations, int adjustedRegions, string parameterSummary)
+            int evaluations, int proxyEvaluations, int adjustedRegions, string parameterSummary)
         {
             Anatomy = anatomy;
             FittedMesh = fittedMesh;
@@ -61,6 +67,7 @@ namespace PixelCreatures.Core.Export
             InitialMeshWorstIoU = initialMeshWorstIoU;
             FittedMeshWorstIoU = fittedMeshWorstIoU;
             Evaluations = evaluations;
+            ProxyEvaluations = proxyEvaluations;
             AdjustedRegions = adjustedRegions;
             ParameterSummary = parameterSummary;
         }
@@ -76,8 +83,12 @@ namespace PixelCreatures.Core.Export
     {
         private static readonly string[] FitGroupOrder =
         {
-            "body", "torso", "pelvis", "head", "neck", "arms", "legs", "tail",
-            "thorax", "abdomen", "wing", "wings", "fin", "fins"
+            // Prioritize the broad anatomy groups that contribute most to silhouette.
+            // Keep the list explicit so a family with many optional details cannot consume
+            // the entire mesh-evaluation budget before its head and limbs are considered.
+            "body", "torso", "pelvis", "head", "ears", "face", "neck", "arms", "legs", "tail",
+            "wings", "wing", "fins", "fin", "abdomen", "thorax", "back", "shell", "elytra",
+            "frill", "crest", "tailfeathers", "tentacles", "hood", "tailfin", "caudal"
         };
         private static readonly HashSet<string> FitGroupNames =
             new HashSet<string>(FitGroupOrder, StringComparer.OrdinalIgnoreCase);
@@ -106,6 +117,23 @@ namespace PixelCreatures.Core.Export
             public double Score => Mean * 0.7 + Worst * 0.3;
         }
 
+        private enum FitParameter : byte
+        {
+            Scale,
+            OffsetX,
+            OffsetY,
+            OffsetZ,
+        }
+
+        private sealed class ReverseCandidate
+        {
+            public string RegionName = string.Empty;
+            public FitParameter Parameter;
+            public double Step;
+            public double Direction;
+            public double ProxyGap;
+        }
+
         public static GeometryFitResult Fit(CreatureModel model, GeometryFitOptions? options = null)
         {
             if (model == null) throw new ArgumentNullException(nameof(model));
@@ -114,6 +142,11 @@ namespace PixelCreatures.Core.Export
                 throw new ArgumentOutOfRangeException(nameof(options.Directions));
             if (options.Passes < 0 || options.Passes > 4)
                 throw new ArgumentOutOfRangeException(nameof(options.Passes));
+            if (!DMath.IsFinite(options.ScaleStep) || options.ScaleStep <= 0 ||
+                !DMath.IsFinite(options.OffsetStep) || options.OffsetStep <= 0 ||
+                !DMath.IsFinite(options.MaxScaleDelta) || options.MaxScaleDelta < 0 || options.MaxScaleDelta > 0.5 ||
+                !DMath.IsFinite(options.MaxOffset) || options.MaxOffset < 0 || options.MaxOffset > 5)
+                throw new ArgumentOutOfRangeException(nameof(options.ScaleStep), "Fit steps and bounds must be finite and non-negative.");
             if (options.EllipsoidSides < 6 || options.EllipsoidSides > 24 ||
                 options.EllipsoidRings < 4 || options.EllipsoidRings > 12)
                 throw new ArgumentOutOfRangeException(nameof(options.EllipsoidSides));
@@ -121,86 +154,151 @@ namespace PixelCreatures.Core.Export
                 options.ExportRings < 4 || options.ExportRings > 128 ||
                 !DMath.IsFinite(options.UnitsPerPixel) || options.UnitsPerPixel <= 0)
                 throw new ArgumentOutOfRangeException(nameof(options.ExportSides));
+            if (options.MaxMeshEvaluations < 1 || options.MaxMeshEvaluations > 256)
+                throw new ArgumentOutOfRangeException(nameof(options.MaxMeshEvaluations));
+            if (options.MaxRegions < 1 || options.MaxRegions > 32)
+                throw new ArgumentOutOfRangeException(nameof(options.MaxRegions));
 
             CreatureAnatomy source = model.Anatomy;
             PixelDepthCapture[] references = MultiviewReconstructor.Capture(model, options.Directions);
             List<FitRegion> regions = DiscoverRegions(source);
-            Metrics initial = Evaluate(source, references, options);
-            int evaluations = 1;
-            ObjMeshResult initialObj = ObjMeshExporter.Export(source, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
-            Metrics initialMesh = EvaluateObj(initialObj.ObjText, references, options.UnitsPerPixel);
+            if (regions.Count > options.MaxRegions)
+                regions.RemoveRange(options.MaxRegions, regions.Count - options.MaxRegions);
 
-            if (regions.Count == 0 || options.Passes == 0)
+            Metrics initialProxy = Evaluate(source, references, options);
+            int proxyEvaluations = 1;
+            ObjMeshResult initialObj = ObjMeshExporter.Export(
+                source, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
+            Metrics initialMesh = EvaluateObj(initialObj.ObjText, references, options.UnitsPerPixel);
+            int meshEvaluations = 1;
+
+            if (regions.Count == 0 || options.Passes == 0 || options.MaxMeshEvaluations == 1)
             {
                 return new GeometryFitResult(source, initialObj, references,
-                    initial.Mean, initial.Mean, initial.Worst, initial.Worst,
+                    initialProxy.Mean, initialProxy.Mean, initialProxy.Worst, initialProxy.Worst,
                     initialMesh.Mean, initialMesh.Mean, initialMesh.Worst, initialMesh.Worst,
-                    evaluations, 0, "没有可拟合的主体分组");
+                    meshEvaluations, proxyEvaluations, 0, "没有可拟合的主体分组或评估预算不足");
             }
 
-            Metrics current = initial;
+            Metrics currentProxy = initialProxy;
+            Metrics currentMesh = initialMesh;
+            ObjMeshResult currentObj = initialObj;
             double scaleStep = options.ScaleStep;
             double offsetStep = options.OffsetStep;
+            const double improvementEpsilon = 0.00005;
 
-            // Coordinate descent over a very small, bounded parameter set. Each accepted
-            // change must improve a score that values both average and worst-view silhouette IoU.
-            for (int pass = 0; pass < options.Passes; pass++)
+            // The actual OBJ silhouette is the acceptance objective. The fast primitive projection
+            // only chooses which direction to try first; it can never cause a worse OBJ to be kept.
+            // One preferred candidate is tested for every coordinate before any reverse candidates,
+            // avoiding a small budget being spent entirely on the first few anatomy groups.
+            for (int pass = 0; pass < options.Passes && meshEvaluations < options.MaxMeshEvaluations; pass++)
             {
-                for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
-                {
-                    for (int parameter = 0; parameter < 4; parameter++)
-                    {
-                        List<FitRegion>? bestRegions = null;
-                        Metrics bestMetrics = current;
-                        foreach (double direction in new[] { -1.0, 1.0 })
-                        {
-                            List<FitRegion> candidateRegions = CopyRegions(regions);
-                            FitRegion candidate = candidateRegions[regionIndex];
-                            switch (parameter)
-                            {
-                                case 0:
-                                    candidate.Scale = Clamp(candidate.Scale + direction * scaleStep,
-                                        1.0 - options.MaxScaleDelta, 1.0 + options.MaxScaleDelta);
-                                    break;
-                                case 1:
-                                    candidate.Offset = candidate.Offset.WithX(Clamp(candidate.Offset.X + direction * offsetStep,
-                                        -options.MaxOffset, options.MaxOffset));
-                                    break;
-                                case 2:
-                                    candidate.Offset = candidate.Offset.WithY(Clamp(candidate.Offset.Y + direction * offsetStep,
-                                        -options.MaxOffset, options.MaxOffset));
-                                    break;
-                                default:
-                                    candidate.Offset = candidate.Offset.WithZ(Clamp(candidate.Offset.Z + direction * offsetStep,
-                                        -options.MaxOffset, options.MaxOffset));
-                                    break;
-                            }
+                var reverseCandidates = new List<ReverseCandidate>();
+                bool budgetExhausted = false;
 
-                            if (SameParameters(candidateRegions, regions)) continue;
-                            CreatureAnatomy candidateAnatomy = ApplyRegions(source, candidateRegions);
-                            Metrics candidateMetrics = Evaluate(candidateAnatomy, references, options);
-                            evaluations++;
-                            if (candidateMetrics.Score > bestMetrics.Score + 0.00005)
-                            {
-                                bestMetrics = candidateMetrics;
-                                bestRegions = candidateRegions;
-                            }
+                for (int regionIndex = 0; regionIndex < regions.Count && !budgetExhausted; regionIndex++)
+                {
+                    foreach (FitParameter parameter in Enum.GetValues<FitParameter>())
+                    {
+                        if (meshEvaluations >= options.MaxMeshEvaluations)
+                        {
+                            budgetExhausted = true;
+                            break;
                         }
 
-                        if (bestRegions != null)
+                        double step = parameter == FitParameter.Scale ? scaleStep : offsetStep;
+                        List<FitRegion>? negative = CreateCandidate(regions, regionIndex, parameter, -1, step, options);
+                        List<FitRegion>? positive = CreateCandidate(regions, regionIndex, parameter, 1, step, options);
+                        if (negative == null && positive == null) continue;
+
+                        Metrics negativeProxy = negative == null ? currentProxy :
+                            Evaluate(ApplyRegions(source, negative), references, options);
+                        if (negative != null) proxyEvaluations++;
+                        Metrics positiveProxy = positive == null ? currentProxy :
+                            Evaluate(ApplyRegions(source, positive), references, options);
+                        if (positive != null) proxyEvaluations++;
+
+                        bool preferNegative = negative != null &&
+                            (positive == null || negativeProxy.Score >= positiveProxy.Score);
+                        List<FitRegion> preferredRegions = preferNegative ? negative! : positive!;
+                        Metrics preferredProxy = preferNegative ? negativeProxy : positiveProxy;
+                        List<FitRegion>? alternateRegions = preferNegative ? positive : negative;
+                        double preferredDirection = preferNegative ? -1 : 1;
+                        double proxyGap = negative == null || positive == null
+                            ? double.PositiveInfinity
+                            : Math.Abs(negativeProxy.Score - positiveProxy.Score);
+
+                        CreatureAnatomy candidateAnatomy = ApplyRegions(source, preferredRegions);
+                        ObjMeshResult candidateObj = ObjMeshExporter.Export(
+                            candidateAnatomy, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
+                        Metrics candidateMesh = EvaluateObj(candidateObj.ObjText, references, options.UnitsPerPixel);
+                        meshEvaluations++;
+
+                        if (candidateMesh.Score > currentMesh.Score + improvementEpsilon)
                         {
-                            regions = bestRegions;
-                            current = bestMetrics;
+                            regions = preferredRegions;
+                            currentProxy = preferredProxy;
+                            currentMesh = candidateMesh;
+                            currentObj = candidateObj;
+                        }
+                        else if (alternateRegions != null)
+                        {
+                            // Retry the other sign only after the primary sweep, and only if budget
+                            // remains. Rebuild it from the then-current state so other accepted
+                            // coordinate changes are preserved.
+                            reverseCandidates.Add(new ReverseCandidate
+                            {
+                                RegionName = regions[regionIndex].Name,
+                                Parameter = parameter,
+                                Step = step,
+                                Direction = -preferredDirection,
+                                ProxyGap = proxyGap,
+                            });
                         }
                     }
                 }
+
+                // Low proxy-gap coordinates are the least certain direction choices, so test their
+                // opposite sign first. All candidates still need to improve the actual OBJ score.
+                reverseCandidates.Sort((a, b) =>
+                {
+                    int gap = a.ProxyGap.CompareTo(b.ProxyGap);
+                    if (gap != 0) return gap;
+                    int region = StringComparer.Ordinal.Compare(a.RegionName, b.RegionName);
+                    return region != 0 ? region : a.Parameter.CompareTo(b.Parameter);
+                });
+
+                foreach (ReverseCandidate reverse in reverseCandidates)
+                {
+                    if (meshEvaluations >= options.MaxMeshEvaluations) break;
+                    int regionIndex = regions.FindIndex(r =>
+                        string.Equals(r.Name, reverse.RegionName, StringComparison.OrdinalIgnoreCase));
+                    if (regionIndex < 0) continue;
+                    List<FitRegion> candidateRegions = CreateCandidate(
+                        regions, regionIndex, reverse.Parameter, reverse.Direction, reverse.Step, options)!;
+                    if (candidateRegions == null) continue;
+
+                    CreatureAnatomy candidateAnatomy = ApplyRegions(source, candidateRegions);
+                    Metrics candidateProxy = Evaluate(candidateAnatomy, references, options);
+                    proxyEvaluations++;
+                    ObjMeshResult candidateObj = ObjMeshExporter.Export(
+                        candidateAnatomy, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
+                    Metrics candidateMesh = EvaluateObj(candidateObj.ObjText, references, options.UnitsPerPixel);
+                    meshEvaluations++;
+
+                    if (candidateMesh.Score > currentMesh.Score + improvementEpsilon)
+                    {
+                        regions = candidateRegions;
+                        currentProxy = candidateProxy;
+                        currentMesh = candidateMesh;
+                        currentObj = candidateObj;
+                    }
+                }
+
                 scaleStep *= 0.5;
                 offsetStep *= 0.5;
             }
 
-            CreatureAnatomy fitted = ApplyRegions(source, regions);
-            ObjMeshResult fittedObj = ObjMeshExporter.Export(fitted, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
-            Metrics fittedMesh = EvaluateObj(fittedObj.ObjText, references, options.UnitsPerPixel);
             int changed = 0;
             var summary = new List<string>();
             foreach (FitRegion region in regions)
@@ -210,11 +308,56 @@ namespace PixelCreatures.Core.Export
                 summary.Add($"{region.Name}: scale {region.Scale:0.###}, offset {region.Offset}");
             }
 
-            return new GeometryFitResult(fitted, fittedObj, references,
-                initial.Mean, current.Mean, initial.Worst, current.Worst,
-                initialMesh.Mean, fittedMesh.Mean, initialMesh.Worst, fittedMesh.Worst,
-                evaluations, changed,
+            CreatureAnatomy fitted = ApplyRegions(source, regions);
+            return new GeometryFitResult(fitted, currentObj, references,
+                initialProxy.Mean, currentProxy.Mean, initialProxy.Worst, currentProxy.Worst,
+                initialMesh.Mean, currentMesh.Mean, initialMesh.Worst, currentMesh.Worst,
+                meshEvaluations, proxyEvaluations, changed,
                 summary.Count == 0 ? "参数未发生有效变化" : string.Join("; ", summary));
+        }
+
+        private static List<FitRegion>? CreateCandidate(List<FitRegion> regions, int regionIndex,
+            FitParameter parameter, double direction, double step, GeometryFitOptions options)
+        {
+            var candidate = CopyRegions(regions);
+            return TryAdjustParameter(candidate[regionIndex], parameter, direction * step, options)
+                ? candidate : null;
+        }
+
+        private static bool TryAdjustParameter(FitRegion region, FitParameter parameter,
+            double delta, GeometryFitOptions options)
+        {
+            switch (parameter)
+            {
+                case FitParameter.Scale:
+                {
+                    double value = Clamp(region.Scale + delta, 1.0 - options.MaxScaleDelta, 1.0 + options.MaxScaleDelta);
+                    if (Math.Abs(value - region.Scale) < 1e-9) return false;
+                    region.Scale = value;
+                    return true;
+                }
+                case FitParameter.OffsetX:
+                {
+                    double value = Clamp(region.Offset.X + delta, -options.MaxOffset, options.MaxOffset);
+                    if (Math.Abs(value - region.Offset.X) < 1e-9) return false;
+                    region.Offset = region.Offset.WithX(value);
+                    return true;
+                }
+                case FitParameter.OffsetY:
+                {
+                    double value = Clamp(region.Offset.Y + delta, -options.MaxOffset, options.MaxOffset);
+                    if (Math.Abs(value - region.Offset.Y) < 1e-9) return false;
+                    region.Offset = region.Offset.WithY(value);
+                    return true;
+                }
+                default:
+                {
+                    double value = Clamp(region.Offset.Z + delta, -options.MaxOffset, options.MaxOffset);
+                    if (Math.Abs(value - region.Offset.Z) < 1e-9) return false;
+                    region.Offset = region.Offset.WithZ(value);
+                    return true;
+                }
+            }
         }
 
         private static List<FitRegion> DiscoverRegions(CreatureAnatomy anatomy)
