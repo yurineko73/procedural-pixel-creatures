@@ -118,7 +118,7 @@ namespace PixelCreatures.Core.Export
                 throw new InvalidOperationException("No semantic skin regions could be converted to indexed topology.");
 
             MultiviewResult sourceMesh = ParseObjForMetrics(
-                ObjMeshExporter.Export(anatomy, 16, 8, options.UnitsPerPixel).ObjText, options.UnitsPerPixel);
+                ObjMeshExporter.Export(anatomy, 16, 8, options.UnitsPerPixel).ObjText, options.UnitsPerPixel, "organic_body_");
             double[] baselineScores = MultiviewSilhouetteMetrics.IntersectionOverUnion(sourceMesh, captures);
             MultiviewResult templateMesh = ToMetricMesh(patches);
             double[] templateScores = MultiviewSilhouetteMetrics.IntersectionOverUnion(templateMesh, captures);
@@ -343,11 +343,13 @@ namespace PixelCreatures.Core.Export
             {
                 int left = (lon + lonSegments - 1) % lonSegments;
                 int right = (lon + 1) % lonSegments;
-                double neighbor = copy[(lat - 1) * lonSegments + lon] +
-                    copy[(lat + 1) * lonSegments + lon] +
+                int above = Math.Max(1, lat - 1);
+                int below = Math.Min(latSegments - 1, lat + 1);
+                double neighbor = copy[above * lonSegments + lon] +
+                    copy[below * lonSegments + lon] +
                     copy[lat * lonSegments + left] + copy[lat * lonSegments + right];
                 int index = lat * lonSegments + lon;
-                radius[index] = copy[index] * 0.82 + neighbor * 0.045;
+                radius[index] = copy[index] * 0.88 + neighbor * 0.03;
             }
         }
 
@@ -457,9 +459,10 @@ namespace PixelCreatures.Core.Export
             return result;
         }
 
-        private static MultiviewResult ParseObjForMetrics(string objText, double unitsPerPixel)
+        private static MultiviewResult ParseObjForMetrics(string objText, double unitsPerPixel, string? objectPrefix = null)
         {
             var result = new MultiviewResult();
+            bool includeFaces = objectPrefix == null;
             foreach (string raw in objText.Split('\n'))
             {
                 string line = raw.Trim();
@@ -472,7 +475,11 @@ namespace PixelCreatures.Core.Export
                         double.Parse(f[2], CultureInfo.InvariantCulture) / unitsPerPixel,
                         double.Parse(f[3], CultureInfo.InvariantCulture) / unitsPerPixel));
                 }
-                else if (line.StartsWith("f ", StringComparison.Ordinal))
+                else if (line.StartsWith("o ", StringComparison.Ordinal))
+                {
+                    includeFaces = objectPrefix == null || line.Substring(2).StartsWith(objectPrefix, StringComparison.Ordinal);
+                }
+                else if (line.StartsWith("f ", StringComparison.Ordinal) && includeFaces)
                 {
                     string[] f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     if (f.Length < 4) continue;
