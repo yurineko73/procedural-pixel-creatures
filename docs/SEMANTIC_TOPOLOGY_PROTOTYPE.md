@@ -1,12 +1,12 @@
 # Semantic topology mesh prototype
 
-**Branch:** \`experiment/semantic-topology-prototype\`  
-**Base:** \`experiment/geometry-fit-prototype\`  
+**Branch:** `experiment/semantic-topology-prototype`  
+**Base:** `experiment/geometry-fit-prototype`  
 **Status:** implementation added; build, automated tests, and visual acceptance are pending.
 
 ## Why this is a different experiment
 
-This path deliberately does **not** use \`ImplicitBodyMesher\`, SDF union, marching tetrahedra, or \`GeometryFitPrototype\` as its final geometry source. It also does not turn the captured depth buffers into a voxel volume as \`MultiviewReconstructor\` does.
+This path deliberately does **not** use `ImplicitBodyMesher`, SDF union, marching tetrahedra, or `GeometryFitPrototype` as its final geometry source. It also does not turn the captured depth buffers into a voxel volume as `MultiviewReconstructor` does.
 
 Instead, it builds an indexed surface for each spatially connected component of a semantic anatomy group, then adjusts those existing vertices against the original 2D renderer's multi-view silhouette and front-depth observations. The topology is created before fitting and remains fixed during fitting.
 
@@ -24,10 +24,10 @@ Instead, it builds an indexed surface for each spatially connected component of 
 
 ## Preview
 
-Open \`examples/preview_3d/CreaturePreview3D.tscn\` with Godot 4.7.1 .NET and run the current scene with **F6**.
+Open `examples/preview_3d/CreaturePreview3D.tscn` with Godot 4.7.1 .NET and run the current scene with **F6**.
 
-- Family: \`biped\`
-- Body Seed: \`12345\`
+- Family: `biped`
+- Body Seed: `12345`
 - Equipment: off while testing
 - Enable **语义拓扑网格（实验 / 不含装备）**
 
@@ -37,11 +37,11 @@ The original 2D reference is displayed beside the 3D preview. Rotate the model a
 
 From the repository root:
 
-\`\`\`powershell
+```powershell
 dotnet run -c Release --project tools/core_harness/CoreHarness.csproj -- test reports semantic_topology 1
-\`\`\`
+```
 
-The test checks deterministic output, non-empty indexed topology, restored facial features, absence of the old \`organic_body_*\` SDF mesh in the final output, finite silhouette scores, and finite OBJ coordinates. Passing this test is not visual acceptance.
+The test checks deterministic output, non-empty indexed topology, restored facial features, absence of the old `organic_body_*` SDF mesh in the final output, finite silhouette scores, and finite OBJ coordinates. Passing this test is not visual acceptance.
 
 ## Known limitations — do not overstate this prototype
 
