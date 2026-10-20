@@ -42,6 +42,7 @@ namespace PixelCreatures.Tests
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.multiview_depth_reconstruction", ctx => MultiviewReconstructionSmoke(ctx, registry));
             r.Run("export.geometry_fit_prototype_is_bounded", ctx => GeometryFitPrototypeSmoke(ctx, registry));
+            r.Run("export.semantic_topology_prototype_is_sdf_free", ctx => SemanticTopologyPrototypeSmoke(ctx, registry));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("export.preview_reported_seed_regressions", ctx => PreviewScreenshotSeedsSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
@@ -188,6 +189,55 @@ namespace PixelCreatures.Tests
                 ctx.True(primitive.LocalA.IsFinite && primitive.LocalB.IsFinite && primitive.LocalC.IsFinite &&
                     primitive.Radii.IsFinite,
                     "Fitted geometry must retain finite primitive parameters");
+        }
+
+        private static void SemanticTopologyPrototypeSmoke(TestContext ctx, CreatureRegistry registry)
+        {
+            var family = registry.GetFamily("biped");
+            var genome = GenomeFactory.Sample(family, 12345UL)
+                .With("gear.weapon", 0).With("gear.outfit", 0)
+                .With("gear.helmet", 0).With("gear.shield", 0).With("gear.pauldrons", 0);
+            CreatureModel model = new CreatureFactory(registry).Build(genome);
+            var options = new SemanticTopologyOptions
+            {
+                Directions = 4,
+                LatitudeSegments = 8,
+                LongitudeSegments = 16,
+                RelaxationPasses = 1,
+                SilhouetteSearchRadius = 2,
+                SampleSides = 12,
+                SampleRings = 6,
+                UnitsPerPixel = 0.04,
+            };
+            SemanticTopologyResult first = SemanticTopologyPrototype.Build(model, options);
+            SemanticTopologyResult second = SemanticTopologyPrototype.Build(model, options);
+
+            ctx.True(first.ReferenceViews.Length == 4, "Semantic topology must use the requested multi-view references");
+            ctx.True(first.RegionCount > 0, "Semantic topology must produce at least one semantic skin patch");
+            ctx.True(first.Mesh.Vertices > 0 && first.Mesh.Triangles > 0, "Semantic topology must produce a non-empty mesh");
+            ctx.True(first.Mesh.ObjText == second.Mesh.ObjText, "Semantic topology OBJ must be deterministic for a fixed seed");
+            ctx.True(first.Mesh.ObjText.Contains("# Semantic topology prototype", StringComparison.Ordinal),
+                "Output must identify the independent topology construction path");
+            ctx.True(first.Mesh.ObjText.Contains("o topology_", StringComparison.Ordinal),
+                "The body must be emitted as indexed semantic topology patches");
+            ctx.True(!first.Mesh.ObjText.Contains("o organic_body_", StringComparison.Ordinal),
+                "The final semantic-topology output must not reuse the old SDF skin mesh");
+            ctx.True(first.Mesh.ObjText.Contains("o feature_", StringComparison.Ordinal),
+                "Original bone-anchored facial features must remain in the exported model");
+            ctx.True(first.Mesh.MtlText.Contains("newmtl MV_Primary", StringComparison.Ordinal),
+                "Semantic topology material library must include the sampled primary palette");
+            ctx.True(!first.Mesh.ObjText.Contains("NaN", StringComparison.Ordinal) &&
+                !first.Mesh.ObjText.Contains("Infinity", StringComparison.Ordinal),
+                "Semantic topology must not emit non-finite vertex coordinates");
+
+            double[] scores =
+            {
+                first.BaselineMeanIoU, first.TemplateMeanIoU, first.FittedMeanIoU,
+                first.BaselineWorstIoU, first.TemplateWorstIoU, first.FittedWorstIoU
+            };
+            foreach (double score in scores)
+                ctx.True(!double.IsNaN(score) && !double.IsInfinity(score) && score >= 0 && score <= 1,
+                    "All old/new mesh silhouette scores must be finite and normalized");
         }
 
         private static void ObjExportSmoke(TestContext ctx, CreatureRegistry reg)
