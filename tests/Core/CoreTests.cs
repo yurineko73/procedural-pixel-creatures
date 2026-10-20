@@ -47,6 +47,7 @@ namespace PixelCreatures.Tests
             r.Run("export.preview_ancestor_limb_attachment", ctx => PreviewAncestorAttachmentSmoke(ctx));
             r.Run("export.preview_fuses_soft_accent_and_faceted_skin", ctx => PreviewSkinUnionSmoke(ctx));
             r.Run("export.preview_headgear_eye_clearance", ctx => PreviewHeadgearClearanceSmoke(ctx));
+            r.Run("export.preview_eye_stamp_scale", ctx => PreviewEyeStampScaleSmoke(ctx));
             r.Run("export.preview_weapon_hand_socket", ctx => PreviewSocketSmoke(ctx));
             r.Run("export.preview_extreme_garment_fallback", ctx => PreviewGarmentFitSmoke(ctx));
             r.Run("export.preview_tiny_sdf_island_cleanup", ctx => PreviewMeshCleanerSmoke(ctx));
@@ -216,6 +217,58 @@ namespace PixelCreatures.Tests
             ctx.True(helmet!.LocalA.Y - helmet.Radii.Y >
                 head.SkullCenterLocal.Y + head.SkullRadii.Y * 0.15,
                 "helmet lower edge should stay above the eye band rather than covering the face");
+        }
+
+        private static void PreviewEyeStampScaleSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 107);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            var spec = new HeadSpec
+            {
+                Name = "head",
+                ParentBone = root,
+                Position = new Vec3(0, 10, 0),
+                Forward = Vec3.UnitX,
+                SkullLength = 8,
+                SkullHeight = 6,
+                SkullWidth = 5,
+                SkullOffset = 0.3,
+                SnoutLength = 2,
+                SnoutRadius = 1.5,
+                JawLength = 0,
+                NoseSize = 0,
+                EyeSize = 5,
+                EyeStyle = EyeStyle.Round,
+                Teeth = TeethKind.None,
+            };
+            Heads.Build(b, spec);
+            var anatomy = b.Build(1);
+            string obj = ObjMeshExporter.Export(anatomy, 8, 4, unitsPerPixel: 0.01).ObjText;
+            double socketHeight = ObjObjectExtent(obj, "feature_0_socket", 1);
+            ctx.True(socketHeight > 0 && socketHeight <= 0.024,
+                "3D eye socket height should follow nominal eye-stamp size and fit within the cranium");
+        }
+
+        private static double ObjObjectExtent(string objText, string objectName, int axis)
+        {
+            bool capture = false;
+            double min = double.PositiveInfinity, max = double.NegativeInfinity;
+            foreach (string raw in objText.Split('\n'))
+            {
+                string line = raw.Trim();
+                if (line.StartsWith("o ", StringComparison.Ordinal))
+                {
+                    if (capture) break;
+                    capture = string.Equals(line, "o " + objectName, StringComparison.Ordinal);
+                    continue;
+                }
+                if (!capture || !line.StartsWith("v ", StringComparison.Ordinal)) continue;
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                double value = double.Parse(parts[axis + 1], CultureInfo.InvariantCulture);
+                min = Math.Min(min, value);
+                max = Math.Max(max, value);
+            }
+            return DMath.IsFinite(min) && DMath.IsFinite(max) ? max - min : 0;
         }
 
         private static void PreviewSocketSmoke(TestContext ctx)
