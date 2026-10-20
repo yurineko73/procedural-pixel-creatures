@@ -42,7 +42,7 @@ namespace PixelCreatures.Tests
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.multiview_depth_reconstruction", ctx => MultiviewReconstructionSmoke(ctx, registry));
             r.Run("export.geometry_fit_prototype_is_bounded", ctx => GeometryFitPrototypeSmoke(ctx, registry));
-            r.Run("export.semantic_topology_prototype_is_sdf_free", ctx => SemanticTopologyPrototypeSmoke(ctx, registry));
+            r.Run("export.semantic_topology_uses_independent_final_mesh", ctx => SemanticTopologyPrototypeSmoke(ctx, registry));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("export.preview_reported_seed_regressions", ctx => PreviewScreenshotSeedsSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
