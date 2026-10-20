@@ -582,7 +582,11 @@ namespace PixelCreatures.Examples
                     mtlText = MultiviewResult.MaterialLibrary(model.Palette);
                     vertexCount = reconstructed.Vertices.Count;
                     triangleCount = reconstructed.Triangles.Count;
-                    reconstructionNote = $"\n方法：16方向原版2D轮廓 + 深度交集\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
+                    double[] iou = MultiviewSilhouetteMetrics.IntersectionOverUnion(reconstructed, captures);
+                    double mean = 0, worst = 1;
+                    foreach (double value in iou) { mean += value; worst = Math.Min(worst, value); }
+                    mean /= iou.Length;
+                    reconstructionNote = $"\n方法：16方向原版2D轮廓 + 深度交集\n轮廓IoU：平均 {mean:P1} / 最低 {worst:P1}\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
                 }
                 else
                 {
