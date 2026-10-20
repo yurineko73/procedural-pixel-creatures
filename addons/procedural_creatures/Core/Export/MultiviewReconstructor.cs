@@ -16,8 +16,12 @@ namespace PixelCreatures.Core.Export
         public int Directions = 16;
         public double GridStep = 1.2;
         public int MaxGridPoints = 320000;
-        public double SilhouetteSlack = 0.65;
-        public double DepthSlack = 1.2;
+        public double SilhouetteSlack = 0.4;
+        public double DepthSlack = 0.45;
+        /// <summary>Number of gentle scalar-field smoothing passes before mesh extraction.</summary>
+        public int FieldSmoothingPasses = 1;
+        /// <summary>Blend of a 1-2-1 neighborhood filter into the field (0..1).</summary>
+        public double FieldSmoothingStrength = 0.65;
     }
 
     public sealed class MultiviewResult
@@ -28,7 +32,7 @@ namespace PixelCreatures.Core.Export
         public double GridStep;
         public int SampledGridPoints;
 
-        public string ToObj(PixelDepthCapture[] captures, CreaturePalette palette, double scale = 0.01)
+        public string ToObj(PixelDepthCapture[] captures, CreaturePalette palette, CreatureAnatomy anatomy, double scale = 0.01)
         {
             var inv = CultureInfo.InvariantCulture;
             var obj = new StringBuilder("# Pixel-depth multi-view reconstructed experimental mesh\n");
@@ -54,13 +58,13 @@ namespace PixelCreatures.Core.Export
             {
                 Vec3 a = Vertices[f.A], b = Vertices[f.B], c = Vertices[f.C];
                 Vec3 normal = Vec3.Cross(b - a, c - a).NormalizedOr(Vec3.UnitY);
-                int color = MultiviewReconstructor.PaletteAt((a + b + c) / 3.0, normal, captures, rotations, offsets, eyes);
-                if (color < CreaturePalette.FirstColorIndex || color >= palette.Colors.Count)
-                    color = palette.Index(MaterialSlot.Primary, Shade.Base);
-                if (color != previous)
+                MaterialSlot material = MultiviewReconstructor.MaterialAt(
+                    (a + b + c) / 3.0, normal, captures, rotations, offsets, eyes, palette, anatomy);
+                int materialId = (int)material;
+                if (materialId != previous)
                 {
-                    obj.Append("usemtl px_").Append(color.ToString(inv)).AppendLine();
-                    previous = color;
+                    obj.Append("usemtl ").Append(material.ToString()).AppendLine();
+                    previous = materialId;
                 }
                 obj.Append("f ").Append(f.A + 1).Append(' ').Append(f.B + 1)
                     .Append(' ').Append(f.C + 1).AppendLine();
@@ -70,12 +74,12 @@ namespace PixelCreatures.Core.Export
 
         public static string MaterialLibrary(CreaturePalette palette)
         {
-            var sb = new StringBuilder("# Original procedural creature palette\n");
-            for (int i = 0; i < palette.Colors.Count; i++)
+            var sb = new StringBuilder("# Semantic materials sampled from the original anatomy\n");
+            foreach (MaterialSlot slot in Enum.GetValues(typeof(MaterialSlot)))
             {
-                Rgba c = palette.Colors[i];
-                if (i < CreaturePalette.FirstColorIndex) continue;
-                sb.Append("newmtl px_").Append(i).AppendLine();
+                if (slot == MaterialSlot.Count) continue;
+                Rgba c = palette.Color(slot, Shade.Base);
+                sb.Append("newmtl ").Append(slot.ToString()).AppendLine();
                 sb.Append("Kd ").Append((c.R / 255.0).ToString("F6", CultureInfo.InvariantCulture)).Append(' ')
                     .Append((c.G / 255.0).ToString("F6", CultureInfo.InvariantCulture)).Append(' ')
                     .Append((c.B / 255.0).ToString("F6", CultureInfo.InvariantCulture)).AppendLine();
@@ -131,7 +135,7 @@ namespace PixelCreatures.Core.Export
             options ??= new MultiviewOptions();
             if (captures == null || captures.Length < 4) throw new ArgumentException("At least four views are required.", nameof(captures));
             if (options.GridStep <= 0 || options.MaxGridPoints < 1000 ||
-                options.SilhouetteSlack < 0 || options.DepthSlack < 0)
+                options.SilhouetteSlack < 0 || options.DepthSlack < 0 || options.FieldSmoothingPasses < 0 || options.FieldSmoothingStrength < 0 || options.FieldSmoothingStrength > 1)
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid reconstruction resolution or tolerance.");
             var views = new ViewData[captures.Length];
             Vec3 lower = new Vec3(Far, Far, Far), upper = new Vec3(-Far, -Far, -Far);
@@ -181,6 +185,8 @@ namespace PixelCreatures.Core.Export
                 for (int y = 0; y < wy; y++)
                     for (int x = 0; x < wx; x++)
                         field[Index(x, y, z)] = Evaluate(Position(x, y, z), views, options);
+            if (options.FieldSmoothingPasses > 0 && options.FieldSmoothingStrength > 0)
+                SmoothField(field, wx, wy, wz, options.FieldSmoothingPasses, options.FieldSmoothingStrength);
             var mesh = new MultiviewResult { ViewCount = captures.Length, GridStep = step, SampledGridPoints = n };
             var edges = new Dictionary<long, int>();
             int Vertex(int ga, int gb, Vec3 pa, Vec3 pb)
@@ -255,6 +261,33 @@ namespace PixelCreatures.Core.Export
             return mesh;
         }
 
+        private static void SmoothField(double[] field, int wx, int wy, int wz, int passes, double strength)
+        {
+            int n = field.Length;
+            var buffer = new double[n];
+            for (int pass = 0; pass < passes; pass++)
+            {
+                // Separable 1-2-1 Gaussian; smooth one axis at a time to retain thin features.
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    Array.Copy(field, buffer, n);
+                    for (int z = 0; z < wz; z++)
+                        for (int y = 0; y < wy; y++)
+                            for (int x = 0; x < wx; x++)
+                            {
+                                int coordinate = axis == 0 ? x : axis == 1 ? y : z;
+                                int limit = axis == 0 ? wx : axis == 1 ? wy : wz;
+                                if (coordinate == 0 || coordinate == limit - 1) continue;
+                                int i = (z * wy + y) * wx + x;
+                                int before = axis == 0 ? i - 1 : axis == 1 ? i - wx : i - wx * wy;
+                                int after = axis == 0 ? i + 1 : axis == 1 ? i + wx : i + wx * wy;
+                                double filtered = (buffer[before] + 2.0 * buffer[i] + buffer[after]) * 0.25;
+                                field[i] = buffer[i] + (filtered - buffer[i]) * strength;
+                            }
+                }
+            }
+        }
+
         /// <summary>Intersection of multi-view visible silhouettes and constraints from observed front depth.</summary>
         private static double Evaluate(Vec3 point, ViewData[] views, MultiviewOptions options)
         {
@@ -323,11 +356,11 @@ namespace PixelCreatures.Core.Export
             return dist;
         }
 
-        internal static int PaletteAt(Vec3 point, Vec3 normal, PixelDepthCapture[] captures,
-            Mat3[] rotations, Vec3[] offsets, Vec3[] eyes)
+        internal static MaterialSlot MaterialAt(Vec3 point, Vec3 normal, PixelDepthCapture[] captures,
+            Mat3[] rotations, Vec3[] offsets, Vec3[] eyes, CreaturePalette palette, CreatureAnatomy anatomy)
         {
             double best = -Far;
-            int color = 0;
+            MaterialSlot selected = MaterialSlot.Primary;
             for (int view = 0; view < captures.Length; view++)
             {
                 var cap = captures[view];
@@ -337,13 +370,35 @@ namespace PixelCreatures.Core.Export
                 int x = (int)Math.Floor(cap.OriginX + p.X), y = (int)Math.Floor(cap.OriginY - p.Y);
                 if (x < 0 || y < 0 || x >= cap.Width || y >= cap.Height) continue;
                 int i = y * cap.Width + x;
-                // A distant occluding leg must not paint the colour of a face behind it.
-                if (!cap.Visible[i] || Math.Abs(cap.Depth[i] - p.Z) > 2.5) continue;
-                if (cap.PaletteIndex[i] < CreaturePalette.FirstColorIndex) continue;
+                if (!cap.Visible[i] || Math.Abs(cap.Depth[i] - p.Z) > 3.0) continue;
+                int primitive = cap.Primitive[i];
+                if (primitive < 0 || primitive >= anatomy.Primitives.Count) continue;
+                MaterialSlot baseSlot = anatomy.Primitives[primitive].Material;
+                selected = ResolveRenderedSlot(baseSlot, cap.PaletteIndex[i], palette);
                 best = facing;
-                color = cap.PaletteIndex[i];
             }
-            return color;
+            return selected;
+        }
+
+        private static MaterialSlot ResolveRenderedSlot(MaterialSlot baseSlot, byte color, CreaturePalette palette)
+        {
+            bool InRamp(MaterialSlot slot)
+            {
+                for (int shade = 0; shade < Shade.Count; shade++)
+                    if (palette.Index(slot, shade) == color) return true;
+                return false;
+            }
+            if (InRamp(baseSlot)) return baseSlot;
+            // Keep pattern and face-feature materials when their pixel color differs from the base ramp.
+            MaterialSlot[] special =
+            {
+                MaterialSlot.Eye, MaterialSlot.Teeth, MaterialSlot.Mouth, MaterialSlot.Glow,
+                MaterialSlot.White, MaterialSlot.Marking, MaterialSlot.Hair, MaterialSlot.Cloth,
+                MaterialSlot.Metal, MaterialSlot.Accent, MaterialSlot.Membrane, MaterialSlot.Secondary
+            };
+            foreach (MaterialSlot slot in special)
+                if (InRamp(slot)) return slot;
+            return baseSlot;
         }
     }
 }
