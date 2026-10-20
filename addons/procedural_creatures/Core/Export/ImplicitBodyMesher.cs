@@ -326,53 +326,42 @@ namespace PixelCreatures.Core.Export
         private static List<Shape> BuildMouthCutters(CreatureAnatomy anatomy)
         {
             var cutters = new List<Shape>();
-            // Only a head that actually has an authored mouth interior and jaw needs this
-            // rest-pose slit; do not carve out of eyes, mandibles or decorative skulls.
+            // Use the mouth ellipsoid authored by Heads.Build. The 2D renderer hides this
+            // interior group until the jaw opens; a static 3D shell needs the same cavity
+            // in its rest pose. Do not guess a second mouth position from a snout percentage.
             foreach (PrimitiveDef cavity in anatomy.Primitives)
             {
                 if (cavity.Group < 0 || cavity.Group >= anatomy.Groups.Count ||
-                    !cavity.Tag.EndsWith(".mouthInterior", StringComparison.Ordinal)) continue;
+                    !cavity.Tag.EndsWith(".mouthInterior", StringComparison.Ordinal) ||
+                    cavity.Kind != PrimKind.Ellipsoid ||
+                    cavity.BoneA < 0 || cavity.BoneA >= anatomy.Skeleton.Count) continue;
+
                 int headBone = cavity.BoneA;
-                bool jaw = false;
-                PrimitiveDef? snout = null, skull = null;
+                bool hasJaw = false;
                 foreach (PrimitiveDef p in anatomy.Primitives)
                 {
-                    if (p.BoneA != headBone) continue;
-                    if (p.Tag.EndsWith(".snout", StringComparison.Ordinal) &&
-                        p.Kind == PrimKind.RoundCone) snout = p;
-                    if (p.Tag.EndsWith(".cranium", StringComparison.Ordinal) &&
-                        p.Kind == PrimKind.Ellipsoid) skull = p;
+                    if (!p.Tag.EndsWith(".jawbone", StringComparison.Ordinal) ||
+                        p.BoneA < 0 || p.BoneA >= anatomy.Skeleton.Count) continue;
+                    if (anatomy.Skeleton.Bones[p.BoneA].Parent == headBone)
+                    {
+                        hasJaw = true;
+                        break;
+                    }
                 }
-                foreach (PrimitiveDef p in anatomy.Primitives)
-                    if (p.Tag.EndsWith(".jawbone", StringComparison.Ordinal) &&
-                        p.BoneA >= 0 && p.BoneA < anatomy.Skeleton.Count &&
-                        anatomy.Skeleton.Bones[p.BoneA].Parent == headBone) { jaw = true; break; }
-                if (!jaw || (snout == null && skull == null)) continue;
-                Vec3 center, radii;
-                if (snout != null)
-                {
-                    Vec3 axis = snout.LocalB - snout.LocalA;
-                    double length = axis.Length;
-                    double radius = Math.Max(0.8, snout.RadiusB);
-                    center = Vec3.Lerp(snout.LocalA, snout.LocalB, 0.70) +
-                        new Vec3(0, -radius * 1.02, 0);
-                    radii = new Vec3(Math.Max(1.6, length * 0.52),
-                        Math.Max(0.8, radius * 0.30),
-                        Math.Max(0.85, radius * 0.95));
-                }
-                else
-                {
-                    // Short humanlike faces may have no separate snout primitive.
-                    center = skull!.LocalA + new Vec3(skull.Radii.X * 0.91,
-                        -skull.Radii.Y * 0.48, 0);
-                    radii = new Vec3(Math.Max(0.5, skull.Radii.X * 0.22),
-                        Math.Max(0.32, skull.Radii.Y * 0.10),
-                        Math.Max(0.65, skull.Radii.Z * 0.65));
-                }
+                if (!hasJaw) continue;
+
+                // A small expansion opens the lip seam in the static rest pose. The center,
+                // orientation and proportions still come from the source mouthInterior shape.
                 cutters.Add(new Shape
                 {
-                    Kind = PrimKind.Ellipsoid, BoneA = anatomy.Skeleton.RestWorld(headBone),
-                    Center = center, Radii = radii, InverseRotation = Quat.Identity,
+                    Kind = PrimKind.Ellipsoid,
+                    BoneA = anatomy.Skeleton.RestWorld(headBone),
+                    Center = cavity.LocalA,
+                    InverseRotation = cavity.LocalRotation.Conjugate,
+                    Radii = new Vec3(
+                        Math.Max(0.5, cavity.Radii.X * 1.08),
+                        Math.Max(0.32, cavity.Radii.Y * 1.12),
+                        Math.Max(0.65, cavity.Radii.Z * 1.05)),
                     Material = MaterialSlot.Mouth
                 });
             }
