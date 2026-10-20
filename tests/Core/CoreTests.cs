@@ -48,6 +48,7 @@ namespace PixelCreatures.Tests
             r.Run("export.preview_dental_lip_fit", ctx => PreviewDentalLipFitSmoke(ctx));
             r.Run("export.preview_visible_mouth_cavity", ctx => PreviewVisibleMouthSmoke(ctx));
             r.Run("export.preview_ears_embed_in_skull", ctx => PreviewEarRootSmoke(ctx));
+            r.Run("export.preview_horn_roots_and_eye_clearance", ctx => PreviewHornRootSmoke(ctx));
             r.Run("export.preview_arthropod_leg_chain", ctx => PreviewArthropodChainSmoke(ctx));
             r.Run("export.preview_claw_toe_fit", ctx => PreviewClawToeFitSmoke(ctx));
             r.Run("export.preview_fixed_user_seeds", ctx => PreviewFixedUserSeedsSmoke(ctx, registry));
@@ -182,6 +183,13 @@ namespace PixelCreatures.Tests
             var surface = ImplicitBodyMesher.Build(anatomy);
             ctx.True(surface.Faces.Any(f => f.Material == MaterialSlot.Mouth),
                 "3D preview must expose a visible dark mouth surface, not merely detached teeth");
+            var mouthFaces = surface.Faces.Where(f => f.Material == MaterialSlot.Mouth).ToArray();
+            var cavity = anatomy.Primitives.First(p => p.Tag == "head.mouthInterior");
+            Vec3 cavityWorld = anatomy.Skeleton.RestWorld(cavity.BoneA).Point(cavity.LocalA);
+            double mouthSurfaceY = mouthFaces.Average(f =>
+                (surface.Vertices[f.A].Y + surface.Vertices[f.B].Y + surface.Vertices[f.C].Y) / 3.0);
+            ctx.True(mouthSurfaceY > cavityWorld.Y - cavity.Radii.Y * 1.15,
+                "mouth cut must follow the authored cavity, not a guessed point far below the muzzle");
             ctx.True(surface.BoundaryEdgeCount == 0 && surface.NonManifoldEdgeCount == 0,
                 "mouth subtraction should not produce holes or non-manifold skin");
             string obj = ObjMeshExporter.Export(anatomy, 10, 6).ObjText;
@@ -222,6 +230,87 @@ namespace PixelCreatures.Tests
                 "the corrected ear root should be slightly embedded inside the skull");
             ctx.True(anatomy.Skeleton.RestWorld(ear.BoneA).Point(ear.LocalA).Equals(worldRoot),
                 "3D ear fitting must not mutate source bones");
+        }
+
+        private static void PreviewHornRootSmoke(TestContext ctx)
+        {
+            var withoutEye = BuildHornRootTestAnatomy(false);
+            var withEye = BuildHornRootTestAnatomy(true);
+            var hornWithoutEye = withoutEye.Primitives.First(p =>
+                withoutEye.Groups[p.Group].Name == "horn.R");
+            var hornWithEye = withEye.Primitives.First(p =>
+                withEye.Groups[p.Group].Name == "horn.R");
+
+            var fitWithoutEye = new PreviewHeadAttachmentFit(withoutEye);
+            var fitWithEye = new PreviewHeadAttachmentFit(withEye);
+            Vec3 rootWithoutEye = withoutEye.Skeleton.RestWorld(hornWithoutEye.BoneA)
+                .Point(hornWithoutEye.LocalA);
+            Vec3 rootWithEye = withEye.Skeleton.RestWorld(hornWithEye.BoneA)
+                .Point(hornWithEye.LocalA);
+            Vec3 offsetWithoutEye = fitWithoutEye.Transform(hornWithoutEye, rootWithoutEye) - rootWithoutEye;
+            Vec3 offsetWithEye = fitWithEye.Transform(hornWithEye, rootWithEye) - rootWithEye;
+
+            ctx.True(fitWithoutEye.HasFittedHorn(hornWithoutEye.Group) &&
+                offsetWithoutEye.Length > 0.2,
+                "horn root must be buried inside the skull so its flat cap is hidden");
+            Vec3 localRoot = withoutEye.Skeleton.RestWorld(hornWithoutEye.BoneA)
+                .InversePoint(rootWithoutEye + offsetWithoutEye);
+            double normalized = Math.Sqrt(localRoot.X * localRoot.X / 25.0 +
+                localRoot.Y * localRoot.Y / 25.0 + localRoot.Z * localRoot.Z / 16.0);
+            ctx.True(normalized < 1.0, "fitted horn root must lie inside the cranium");
+
+            FeatureDef eye = withEye.Features.First(f => f.Kind == FeatureKind.Eye);
+            Vec3 eyeWorld = withEye.Skeleton.RestWorld(eye.Bone).Point(eye.LocalPosition);
+            double before = MinDistanceToAppendageGroup(withEye, hornWithEye.Group,
+                eyeWorld, offsetWithoutEye);
+            double after = MinDistanceToAppendageGroup(withEye, hornWithEye.Group,
+                eyeWorld, offsetWithEye);
+            ctx.True(after > before + 0.1,
+                "a horn close to an eye must be shifted away from the eye in the 3D preview");
+        }
+
+        private static CreatureAnatomy BuildHornRootTestAnatomy(bool withEye)
+        {
+            var b = new AnatomyBuilder("biped", 118);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int head = b.Bone("head", root, new Vec3(0, 12, 0), Quat.Identity, 0, BoneRole.Head);
+            int headGroup = b.Group("head", 0.8);
+            b.Ellipsoid(headGroup, head, Vec3.Zero, new Vec3(5, 5, 4), MaterialSlot.Primary)
+                .Tag = "head.cranium";
+            Horns.Build(b, new HornSpec
+            {
+                Name = "horn", HeadBone = head, Base = new Vec3(0, 4.6, 3.8),
+                Size = 5, Thickness = 0.55, Kind = HornKind.Curved, Material = MaterialSlot.Accent
+            });
+            if (withEye)
+            {
+                b.Feature(new FeatureDef
+                {
+                    Kind = FeatureKind.Eye, Bone = head,
+                    LocalPosition = new Vec3(0.2, 3.9, 2.4), LocalNormal = Vec3.UnitZ,
+                    Size = 3, Side = 1, Group = headGroup
+                });
+            }
+            return b.Build(1);
+        }
+
+        private static double MinDistanceToAppendageGroup(CreatureAnatomy anatomy,
+            int groupIndex, Vec3 point, Vec3 offset)
+        {
+            double nearest = double.PositiveInfinity;
+            foreach (PrimitiveDef segment in anatomy.Primitives)
+            {
+                if (segment.Group != groupIndex || segment.Kind != PrimKind.RoundCone ||
+                    segment.BoneA < 0 || segment.BoneA >= anatomy.Skeleton.Count ||
+                    segment.BoneB < 0 || segment.BoneB >= anatomy.Skeleton.Count) continue;
+                Vec3 a = anatomy.Skeleton.RestWorld(segment.BoneA).Point(segment.LocalA) + offset;
+                Vec3 b = anatomy.Skeleton.RestWorld(segment.BoneB).Point(segment.LocalB) + offset;
+                Vec3 ab = b - a;
+                double t = ab.LengthSquared > 1e-12
+                    ? Math.Max(0.0, Math.Min(1.0, Vec3.Dot(point - a, ab) / ab.LengthSquared)) : 0.0;
+                nearest = Math.Min(nearest, Vec3.Distance(point, a + ab * t));
+            }
+            return nearest;
         }
 
         private static void PreviewArthropodChainSmoke(TestContext ctx)
@@ -272,8 +361,8 @@ namespace PixelCreatures.Tests
             ctx.True(PreviewDentalFit.Applies(a, tooth), "upper tooth should use the lip fitter");
             ctx.True(PreviewDentalFit.TryFit(a, tooth, out PrimitiveDef fitted),
                 "lip fitting should preserve a readable upper tooth");
-            ctx.True(fitted.LocalA.Y < tooth.LocalA.Y,
-                "tooth root should sit inside the underside of the upper muzzle");
+            ctx.True(fitted.LocalA.Y > tooth.LocalA.Y,
+                "3D tooth root should not be pushed below the authored upper-lip line");
             ctx.True((fitted.LocalB - fitted.LocalA).Length <
                 (tooth.LocalB - tooth.LocalA).Length,
                 "the closed-mouth static preview must not export the entire exposed 2D fang");
@@ -314,23 +403,31 @@ namespace PixelCreatures.Tests
 
         private static void PreviewFixedUserSeedsSmoke(TestContext ctx, CreatureRegistry reg)
         {
-            // Reproduce the precise 12345 body / 54321 equipment seeds in the user screenshots.
+            // Reproduce both body/equipment seed pairs shown in the user's screenshots.
             var family = reg.Families.First(f => f.Id == "biped");
-            const ulong bodySeed = 12345UL, gearSeed = 54321UL;
-            var body = GenomeFactory.Sample(family, bodySeed);
-            var colours = NativeGearRandomizer.ApplyEquipmentColors(body, family,
-                StableHash.Derive(gearSeed, "equipment.colors"));
-            var equipped = NativeGearRandomizer.ApplyNativeGearGenes(colours, family,
-                gearSeed, EquipmentSeedSet.FromMaster(gearSeed));
-            var anatomy = family.BuildAnatomy(equipped, reg);
-            string result = ObjMeshExporter.Export(anatomy, 8, 4).ObjText;
-            ctx.True(result.Contains("o organic_body_", StringComparison.Ordinal),
-                "fixed 12345/54321 seed should produce continuous skin");
-            ctx.True(!result.Contains("NaN", StringComparison.Ordinal) &&
-                !result.Contains("Infinity", StringComparison.Ordinal),
-                "fixed 12345/54321 seed should not export nonfinite geometry");
-            ctx.True(result == ObjMeshExporter.Export(anatomy, 8, 4).ObjText,
-                "fixed user body and equipment seeds must be deterministic");
+            var cases = new (ulong BodySeed, ulong GearSeed)[]
+            {
+                (12345UL, 54321UL),
+                (16114805862360663785UL, 3668598035714744795UL),
+            };
+            foreach (var testCase in cases)
+            {
+                var body = GenomeFactory.Sample(family, testCase.BodySeed);
+                var colours = NativeGearRandomizer.ApplyEquipmentColors(body, family,
+                    StableHash.Derive(testCase.GearSeed, "equipment.colors"));
+                var equipped = NativeGearRandomizer.ApplyNativeGearGenes(colours, family,
+                    testCase.GearSeed, EquipmentSeedSet.FromMaster(testCase.GearSeed));
+                var anatomy = family.BuildAnatomy(equipped, reg);
+                string result = ObjMeshExporter.Export(anatomy, 8, 4).ObjText;
+                string description = $"body {testCase.BodySeed} / equipment {testCase.GearSeed}";
+                ctx.True(result.Contains("o organic_body_", StringComparison.Ordinal),
+                    description + ": fixed seeds should produce continuous skin");
+                ctx.True(!result.Contains("NaN", StringComparison.Ordinal) &&
+                    !result.Contains("Infinity", StringComparison.Ordinal),
+                    description + ": fixed seeds should not export nonfinite geometry");
+                ctx.True(result == ObjMeshExporter.Export(anatomy, 8, 4).ObjText,
+                    description + ": OBJ export must be deterministic");
+            }
         }
 
         private static void PreviewAttachmentSmoke(TestContext ctx)
