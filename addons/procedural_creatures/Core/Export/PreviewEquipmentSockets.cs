@@ -59,9 +59,11 @@ namespace PixelCreatures.Core.Export
                 }
                 if (any)
                 {
-                    double available = Math.Max(0.5, grip.Y - 0.2);
+                    // Never force a long staff/spear to keep a 30% minimum scale: that clamp
+                    // can leave the tip below the display floor on short-armed creatures.
+                    double available = Math.Max(0.01, grip.Y - 0.25);
                     double reachBelow = Math.Max(0.0, grip.Y - lowest);
-                    double scale = reachBelow > available ? Math.Max(0.30, available / reachBelow) : 1.0;
+                    double scale = reachBelow > available ? Math.Min(1.0, available / reachBelow) : 1.0;
                     _weapon = new Placement(grip, grip, rotation, scale);
                     _hasWeapon = true;
                 }
