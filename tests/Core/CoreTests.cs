@@ -119,8 +119,8 @@ namespace PixelCreatures.Tests
                     "Original 2D facial features must be restored as attached 3D geometry");
             ctx.True(mesh.ExportedVertices >= mesh.Vertices.Count && mesh.ExportedTriangles >= mesh.Triangles.Count,
                 "Export statistics must include separately generated feature geometry");
-            ctx.True(first.Contains("usemtl Primary", StringComparison.Ordinal) ||
-                first.Contains("usemtl Secondary", StringComparison.Ordinal),
+            ctx.True(first.Contains("usemtl MV_Primary", StringComparison.Ordinal) ||
+                first.Contains("usemtl MV_Secondary", StringComparison.Ordinal),
                 "Reconstructed surfaces must preserve semantic anatomy material slots");
             ctx.True(!first.Contains("usemtl px_", StringComparison.Ordinal),
                 "Per-triangle pixel colors should not create a noisy mosaic of flat materials");
