@@ -304,7 +304,10 @@ Horn/ear root embedding now scales with the actual appendage root radius rather 
 
 ## 2026-10-20 — Geometry-fit objective correction
 
-**Branch:** `experiment/geometry-fit-prototype`. The experiment now scores candidate adjustments using the actual OBJ silhouette, not just the lightweight primitive-projection proxy. The proxy only selects a preferred search direction; a candidate is retained only when the actual OBJ's weighted mean/worst-view IoU improves. The fitter also prioritizes up to six semantic groups and caps OBJ evaluations to keep the preview bounded.
+**Branch:** `experiment/geometry-fit-prototype` (not merged).  
+**Core implementation commit:** `892610b882759ae2478a6c8a1ed1f2f21bf750f5`.
+
+The experiment now scores candidate adjustments using the actual OBJ silhouette, not just the lightweight primitive-projection proxy. The proxy only selects a preferred search direction; a candidate is retained only when the actual OBJ's weighted mean/worst-view IoU improves. The fitter also prioritizes up to six semantic groups and caps OBJ evaluations to keep the preview bounded.
 
 - Core entry: `Core/Export/GeometryFitPrototype.cs`.
 - Preview: `examples/preview_3d/CreaturePreview3D.tscn` / `CreaturePreview3D.cs`.
