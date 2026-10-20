@@ -106,8 +106,8 @@ namespace PixelCreatures.Tests
             foreach (double value in overlap)
                 ctx.True(value >= 0 && value <= 1 && !double.IsNaN(value),
                     "Per-direction silhouette IoU must stay within [0, 1]");
-            string first = mesh.ToObj(captures, model.Palette);
-            string second = mesh.ToObj(captures, model.Palette);
+            string first = mesh.ToObj(captures, model.Palette, model.Anatomy);
+            string second = mesh.ToObj(captures, model.Palette, model.Anatomy);
             ctx.True(first == second, "Multi-view OBJ output should be deterministic");
             ctx.True(first.Contains("mtllib creature.mtl", StringComparison.Ordinal),
                 "Reconstruction export must reference its matching MTL");
