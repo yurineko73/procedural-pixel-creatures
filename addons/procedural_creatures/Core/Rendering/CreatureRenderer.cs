@@ -208,7 +208,15 @@ namespace PixelCreatures.Core.Rendering
         {
             if (frame.Width != _w || frame.Height != _h)
                 throw new ArgumentException("Depth capture must match the last rendered frame.", nameof(frame));
-            return new PixelDepthCapture(frame, view, _pflags, _z, _nx, _ny, _nz, _prim, _group, FlagCovered);
+            // _prim stores an index into the prepared, quality-filtered PPrim buffer. Convert it
+            // back to CreatureAnatomy.Primitives indices so reconstruction can recover semantic materials.
+            var sourcePrimitive = new short[_w * _h];
+            for (int i = 0; i < sourcePrimitive.Length; i++)
+            {
+                int prepared = _prim[i];
+                sourcePrimitive[i] = (short)(prepared >= 0 && prepared < _ppCount ? _pp[prepared].Source : -1);
+            }
+            return new PixelDepthCapture(frame, view, _pflags, _z, _nx, _ny, _nz, sourcePrimitive, _group, FlagCovered);
         }
 
         private int _lastW = -1, _lastH = -1;
