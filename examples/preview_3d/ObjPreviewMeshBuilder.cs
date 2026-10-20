@@ -173,8 +173,22 @@ void light() {
             return _toonShader;
         }
 
-        private static ShaderMaterial CreateMaterial(string materialName, CreaturePalette palette)
+        private static Material CreateMaterial(string materialName, CreaturePalette palette)
         {
+            // Reconstructed preview material is a pixel color measured by the original 2D renderer,
+            // not a conventional light-dependent material ramp. Avoid recolouring that measurement.
+            if (materialName.StartsWith("px_", StringComparison.Ordinal) &&
+                int.TryParse(materialName.Substring(3), NumberStyles.Integer, CultureInfo.InvariantCulture, out int colorIndex) &&
+                colorIndex >= CreaturePalette.FirstColorIndex && colorIndex < palette.Colors.Count)
+            {
+                Rgba c = palette.Colors[colorIndex];
+                return new StandardMaterial3D
+                {
+                    ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                    CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                    AlbedoColor = new Color(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 255f),
+                };
+            }
             (MaterialSlot slot, int fixedShade, bool emissive) = ResolveMaterial(materialName);
             var material = new ShaderMaterial { Shader = GetToonShader() };
             for (int shade = 0; shade < Shade.Count; shade++)
