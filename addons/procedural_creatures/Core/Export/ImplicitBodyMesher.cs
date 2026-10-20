@@ -70,6 +70,9 @@ namespace PixelCreatures.Core.Export
 
         public static bool ShouldUnify(CreatureAnatomy anatomy, PrimitiveDef primitive)
         {
+            // A coarse full-body voxel budget cannot faithfully represent thin multi-segment
+            // arthropod legs. Preserve their exact continuous bone-chain geometry separately.
+            if (PreviewSegmentChainFit.ShouldHandle(anatomy, primitive)) return false;
             if (primitive.Kind != PrimKind.Ellipsoid && primitive.Kind != PrimKind.RoundCone) return false;
             if (primitive.Material != MaterialSlot.Primary && primitive.Material != MaterialSlot.Secondary &&
                 primitive.Material != MaterialSlot.Accent && primitive.Material != MaterialSlot.White) return false;
