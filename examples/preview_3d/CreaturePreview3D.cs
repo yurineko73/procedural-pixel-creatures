@@ -586,7 +586,7 @@ namespace PixelCreatures.Examples
                     double mean = 0, worst = 1;
                     foreach (double value in iou) { mean += value; worst = Math.Min(worst, value); }
                     mean /= iou.Length;
-                    reconstructionNote = $"\n方法：16方向轮廓视觉壳 + 截断深度约束/特征\n主体轮廓IoU：平均 {mean:P1} / 最低 {worst:P1}\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
+                    reconstructionNote = $"\n方法：16方向轮廓视觉壳 + 连续深度采样/边缘保留平滑\n主体轮廓IoU：平均 {mean:P1} / 最低 {worst:P1}\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
                 }
                 else
                 {
