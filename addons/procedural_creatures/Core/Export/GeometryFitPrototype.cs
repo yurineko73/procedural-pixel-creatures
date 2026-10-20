@@ -274,8 +274,8 @@ namespace PixelCreatures.Core.Export
                     int regionIndex = regions.FindIndex(r =>
                         string.Equals(r.Name, reverse.RegionName, StringComparison.OrdinalIgnoreCase));
                     if (regionIndex < 0) continue;
-                    List<FitRegion> candidateRegions = CreateCandidate(
-                        regions, regionIndex, reverse.Parameter, reverse.Direction, reverse.Step, options)!;
+                    List<FitRegion>? candidateRegions = CreateCandidate(
+                        regions, regionIndex, reverse.Parameter, reverse.Direction, reverse.Step, options);
                     if (candidateRegions == null) continue;
 
                     CreatureAnatomy candidateAnatomy = ApplyRegions(source, candidateRegions);
