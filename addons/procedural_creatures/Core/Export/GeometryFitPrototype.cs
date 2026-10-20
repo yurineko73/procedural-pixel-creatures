@@ -15,7 +15,7 @@ namespace PixelCreatures.Core.Export
     public sealed class GeometryFitOptions
     {
         public int Directions = 8;
-        public int Passes = 2;
+        public int Passes = 1;
         public double ScaleStep = 0.04;
         public double OffsetStep = 0.25;
         public double MaxScaleDelta = 0.08;
@@ -75,9 +75,8 @@ namespace PixelCreatures.Core.Export
 
     /// <summary>
     /// Small deterministic experiment for reducing silhouette mismatch between the original 2D
-    /// renderer and a mesh made from the same anatomy primitives. It optimizes only a few semantic
-    /// group transforms with tight bounds. Optimization uses a lightweight triangulated primitive
-    /// projection; a separate IoU is then measured from the actual exported OBJ for validation.
+    /// renderer and the actual OBJ export. A lightweight primitive projection guides candidate
+    /// direction, but only the exported-OBJ silhouette score can accept a geometry change.
     /// </summary>
     public static class GeometryFitPrototype
     {
@@ -146,7 +145,7 @@ namespace PixelCreatures.Core.Export
                 !DMath.IsFinite(options.OffsetStep) || options.OffsetStep <= 0 ||
                 !DMath.IsFinite(options.MaxScaleDelta) || options.MaxScaleDelta < 0 || options.MaxScaleDelta > 0.5 ||
                 !DMath.IsFinite(options.MaxOffset) || options.MaxOffset < 0 || options.MaxOffset > 5)
-                throw new ArgumentOutOfRangeException(nameof(options.ScaleStep), "Fit steps and bounds must be finite and non-negative.");
+                throw new ArgumentOutOfRangeException(nameof(options.ScaleStep), "Step sizes must be positive and fit bounds must be finite and non-negative.");
             if (options.EllipsoidSides < 6 || options.EllipsoidSides > 24 ||
                 options.EllipsoidRings < 4 || options.EllipsoidRings > 12)
                 throw new ArgumentOutOfRangeException(nameof(options.EllipsoidSides));
@@ -415,14 +414,6 @@ namespace PixelCreatures.Core.Export
             var copy = new List<FitRegion>(source.Count);
             foreach (FitRegion region in source) copy.Add(region.Copy());
             return copy;
-        }
-
-        private static bool SameParameters(List<FitRegion> a, List<FitRegion> b)
-        {
-            for (int i = 0; i < a.Count; i++)
-                if (Math.Abs(a[i].Scale - b[i].Scale) > 1e-9 || (a[i].Offset - b[i].Offset).Length > 1e-9)
-                    return false;
-            return true;
         }
 
         private static CreatureAnatomy ApplyRegions(CreatureAnatomy source, List<FitRegion> regions)
