@@ -24,7 +24,7 @@ godot --path . res://examples/preview_3d/CreaturePreview3D.tscn
 - Select Fantasy (the family's original procedural gear), Modern, Sci-Fi, or Wasteland. The three new style packs use the same four independent slot streams.
 - In the original Fantasy schema, `gear.size` is shared by several pieces and therefore changes only when the master equipment seed changes; slot rerolls only change the genes belonging to that slot.
 - **Multi-view depth reconstruction** remains an experimental comparison mode; it is not the default exporter.
-- **几何拟合原型** captures the original 2D silhouettes from eight angles and performs a small, bounded optimization of the source anatomy groups before sending the result through the current OBJ exporter. The status panel reports the proxy silhouette score before/after fitting. This is a test mode, not a validated fix; the score measures the triangulated primitive proxy, not the final SDF mesh.
+- **几何拟合原型** captures the original 2D silhouettes from eight angles and performs a small, bounded optimization of the source anatomy groups before sending the result through the current OBJ exporter. The status panel reports proxy silhouette IoU and a separate before/after score from the actual exported OBJ. The proxy score drives optimization; the OBJ score is a validation metric. This is a test mode, not a validated fix.
 - Drag the model area to orbit; use the mouse wheel to zoom; reset the camera if needed.
 - **Export OBJ + MTL** writes the current preview to `user://exports/3d-preview/` and opens that directory.
 
