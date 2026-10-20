@@ -62,7 +62,7 @@ New path:
 post-cleanup G-buffer depth/silhouette/primitive provenance -> multi-view
 depth/silhouette intersection field -> marching tetrahedra -> mesh -> OBJ`.
 
-The new path does not call `ImplicitBodyMesher.Build` nor `ObjMeshExporter`
+The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExporter.Export`. It uses rendered depth, normals and silhouettes as geometric constraints. The separate eye/pupil/highlight/nostril meshes reuse `ObjMeshExporter.AppendFeatures` and its existing `PreviewFeatureFit` solely to position those details.
 nor any `Preview*Fit` module. It uses the rendered results themselves as the
 geometric constraints, including the old depth ordering, silhouette fillets,
 and cleanup, subject to a bounded tolerance.
@@ -72,7 +72,7 @@ and cleanup, subject to a bounded tolerance.
 - `CreatureRenderer.CaptureDepth` takes a defensive copy **after** the
   renderer's original pixel pipeline. `PixelDepthCapture` stores depth,
   normals, original primitive/group IDs, visibility and final palette indices.
-  Ground shadows are excluded from the geometry mask. Pixel-stamped eyes remain
+  Ground shadows are excluded from the geometry mask. The eye pixel stamps are not treated as mesh geometry; instead, the original bone-anchored feature definitions are exported as separate meshes. Pixel-stamped eyes remain
   in the **color image**, not physically measured eye topology.
 - `PixelDepthCapture.BackProject` uses the inverse of the original Y-axis
   yaw plus 30° oblique orthographic camera to obtain observed 3D points.
@@ -84,10 +84,10 @@ and cleanup, subject to a bounded tolerance.
 - `MultiviewSilhouetteMetrics` rasterizes the reconstructed triangle silhouettes
   into each source camera and reports per-view/average/worst intersection-over-union.
   This tests *shape overlap only*, NOT facial fidelity or color quality.
-- The OBJ assigns face palette materials by selecting a source-visible
+- The OBJ assigns semantic material slots from the original primitive IDs and final pixel palette, preserving distinct materials and some pattern colors without giving every triangle a separate shade. This is not a UV texture atlas, so detailed markings remain approximate. The OBJ assigns face palette materials by selecting a source-visible
   pixel near each face with a consistent normal and similar depth. These
   colors are **view samples**; they are *not* a high quality UV texture atlas.
-- The Godot viewer uses **unlit pixel-color material** for these observed
+- The Godot viewer uses the project's existing **semantic toon material ramps**, and the appended eye/nostril meshes use their dedicated feature materials. The Godot viewer uses **unlit pixel-color material** for these observed
   palette indices so a second toon-lighting pass does not recolor them.
 
 ## Current boundaries / rejection conditions
@@ -104,7 +104,7 @@ The screenshot review found severe faceting and missing facial structure. The br
 3. **Resolution and topology:** Small tips and thin limbs may vanish from the
    sampled grid. A closed scalar-field surface is not equivalent to a connected,
    articulated anatomical rig. Adjacent biological parts may fuse unintentionally.
-4. **Face fidelity:** The 2D renderer draws facial features as pixel clusters
+4. **Face fidelity:** Eyes, pupils, highlights and nostrils now use explicit bone-anchored feature meshes. Mouth and teeth still need dedicated topology validation; their rasterized color alone does not guarantee a true mouth cavity or a connected dental arc. No UVs, skinned animation, or GLB. 4. **Face fidelity:** The 2D renderer draws facial features as pixel clusters
    after geometry rasterization. Colored triangles are not physical eyes/lips,
    and tiny features may be lost entirely. No UVs, skinned animation, or GLB.
 5. **Performance:** Generating 16 full pixel views and a 3D grid is CPU
