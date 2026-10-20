@@ -577,7 +577,7 @@ namespace PixelCreatures.Examples
                     var captures = MultiviewReconstructor.Capture(model, 16);
                     MultiviewResult reconstructed = MultiviewReconstructor.Build(
                         captures, new MultiviewOptions { Directions = 16 });
-                    objText = reconstructed.ToObj(captures, model.Palette, PreviewUnitsPerPixel);
+                    objText = reconstructed.ToObj(captures, model.Palette, model.Anatomy, PreviewUnitsPerPixel);
                     SetReference(captures[0], model);
                     mtlText = MultiviewResult.MaterialLibrary(model.Palette);
                     vertexCount = reconstructed.Vertices.Count;
