@@ -226,6 +226,9 @@ namespace PixelCreatures.Tests
                 "Original bone-anchored facial features must remain in the exported model");
             ctx.True(first.Mesh.MtlText.Contains("newmtl MV_Primary", StringComparison.Ordinal),
                 "Semantic topology material library must include the sampled primary palette");
+            ctx.True(first.Mesh.ObjText.Contains("usemtl px_", StringComparison.Ordinal) &&
+                first.Mesh.MtlText.Contains("newmtl px_", StringComparison.Ordinal),
+                "Topology faces must preserve exact palette indices sampled from the original renderer");
             ctx.True(!first.Mesh.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                 !first.Mesh.ObjText.Contains("Infinity", StringComparison.Ordinal),
                 "Semantic topology must not emit non-finite vertex coordinates");
