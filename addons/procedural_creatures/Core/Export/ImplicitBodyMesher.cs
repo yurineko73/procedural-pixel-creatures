@@ -81,9 +81,11 @@ namespace PixelCreatures.Core.Export
             PartGroup group = anatomy.Groups[primitive.Group];
             if ((group.Flags & GroupFlags.Interior) != 0) return false;
             string name = group.Name ?? string.Empty;
-            if (IsEquipmentGroup(name)) return false;
-            if (primitive.Material == MaterialSlot.Primary || primitive.Material == MaterialSlot.Secondary) return true;
-            return !IsStandaloneDetailGroup(name);
+            // Apply semantic separation to ALL material slots. Otherwise primary-coloured
+            // horns, feelers and tentacles inadvertently join the global body SDF even
+            // though identical Accent variants are left as standalone meshes.
+            if (IsEquipmentGroup(name) || IsStandaloneDetailGroup(name)) return false;
+            return true;
         }
 
         private static bool IsEquipmentGroup(string name) =>
@@ -99,7 +101,7 @@ namespace PixelCreatures.Core.Export
             // fused skin. Truly separate appendages and facial hardware must retain their own mesh.
             string[] tokens = { "horn", "ear.", ".ear", "antenna", "whisker", "claw", "teeth", "fang",
                 "tusk", "mandible", "pincer", "stinger", "spike", "thorn", "wing", "fin", "membrane",
-                "shell", "crown", "crest", "leaf", "tentacle", "eyestalk" };
+                "shell", "crown", "crest", "leaf", "tentacle", "eyestalk", "stalkeye" };
             foreach (string token in tokens)
                 if (name.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0) return true;
             return false;
