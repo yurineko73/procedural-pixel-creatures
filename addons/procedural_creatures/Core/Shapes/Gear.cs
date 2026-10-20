@@ -195,14 +195,19 @@ namespace PixelCreatures.Core.Shapes
             switch (kind)
             {
                 case HeadGearKind.Cap:
-                    E(c + new Vec3(-r.X * 0.08, r.Y * 0.56, 0), new Vec3(r.X * 1.05 + pad, r.Y * 0.62 + pad, r.Z * 1.08 + pad), MaterialSlot.Cloth, "gear.cap");
+                    E(c + new Vec3(-r.X * 0.06, r.Y * 0.78, 0),
+                        new Vec3(r.X * 1.04 + pad, r.Y * 0.38 + 0.12, r.Z * 1.07 + pad),
+                        MaterialSlot.Cloth, "gear.cap");
                     break;
                 case HeadGearKind.Helmet:
                 case HeadGearKind.Horned:
                 {
-                    E(c + new Vec3(-r.X * 0.06, r.Y * 0.6, 0), new Vec3(r.X * 1.07 + pad, r.Y * 0.68 + pad, r.Z * 1.09 + pad), MaterialSlot.Metal, "gear.helmet");
+                    E(c + new Vec3(-r.X * 0.04, r.Y * 0.82, 0),
+                        new Vec3(r.X * 1.07 + pad, r.Y * 0.42 + 0.12, r.Z * 1.09 + pad),
+                        MaterialSlot.Metal, "gear.helmet");
                     int rg = b.Group("gear.helmetRim", 0.5, 0, GroupFlags.None, Bias + 0.25);
-                    var rim = b.Ellipsoid(rg, head.Head, c + new Vec3(-r.X * 0.06, r.Y * 0.4, 0), new Vec3(r.X * 1.1 + pad + 0.3, Math.Max(0.55, r.Y * 0.1), r.Z * 1.12 + pad + 0.3), MaterialSlot.Metal);
+                    var rim = b.Ellipsoid(rg, head.Head, c + new Vec3(-r.X * 0.04, r.Y * 0.42, 0),
+                        new Vec3(r.X * 1.1 + pad + 0.3, Math.Max(0.35, r.Y * 0.08), r.Z * 1.12 + pad + 0.3), MaterialSlot.Metal);
                     rim.Flags |= PrimFlags.NoPattern;
                     rim.ShadeBias = -1;
                     rim.Tag = "gear.helmetRim";
@@ -231,7 +236,9 @@ namespace PixelCreatures.Core.Shapes
                 case HeadGearKind.Hood:
                 {
                     // shifted back so the face stays free; a drape falls to the shoulders
-                    E(c + new Vec3(-r.X * 0.3, r.Y * 0.16, 0), new Vec3(r.X * 1.08 + pad, r.Y * 1.16 + pad, r.Z * 1.2 + pad), MaterialSlot.Cloth, "gear.hood");
+                    E(c + new Vec3(-r.X * 0.55, r.Y * 0.10, 0),
+                        new Vec3(r.X * 1.00 + pad, r.Y * 1.05 + pad, r.Z * 1.18 + pad),
+                        MaterialSlot.Cloth, "gear.hood");
                     var tipP = b.Cone(g, head.Head, c + new Vec3(-r.X * 0.7, r.Y * 0.7, 0), Math.Max(0.8, r.Y * 0.45), head.Head,
                         c + new Vec3(-r.X * 1.55, r.Y * 0.95, 0), 0.45, MaterialSlot.Cloth);
                     tipP.Flags |= PrimFlags.NoPattern;
