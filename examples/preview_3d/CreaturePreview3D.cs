@@ -296,6 +296,20 @@ namespace PixelCreatures.Examples
                 TooltipText = "原版2D渲染器的真实基准画面（0°）。与右侧新重建的3D模型对照。",
             };
             column.AddChild(_reference2D);
+            var align2dCamera = new Button
+            {
+                Text = "对齐原版 2D 摄像机（0° / 30°）",
+                TooltipText = "切换正交摄影，按原版30度俯视方向观察3D网格；精确像素对比仍受预览窗口尺寸影响。",
+            };
+            align2dCamera.Pressed += () =>
+            {
+                _camera.Projection = Camera3D.ProjectionType.Orthogonal;
+                _camera.Size = 5.0f;
+                _yaw = 0;
+                _pitch = -Mathf.Pi / 6f;
+                UpdateCameraRig();
+            };
+            column.AddChild(align2dCamera);
             column.AddChild(new HSeparator());
             column.AddChild(SectionLabel("04  当前模型"));
             _status = new Label
@@ -320,6 +334,7 @@ namespace PixelCreatures.Examples
             var resetCamera = new Button { Text = "重置视角", CustomMinimumSize = new Vector2(0, 32) };
             resetCamera.Pressed += () =>
             {
+                _camera.Projection = Camera3D.ProjectionType.Perspective;
                 _yaw = 0.58f;
                 _pitch = 0.12f;
                 _cameraDistance = 6.5f;
