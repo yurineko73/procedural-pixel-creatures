@@ -71,11 +71,37 @@ namespace PixelCreatures.Core.Export
                 }
 
                 if (horn)
-                    offset += EyeClearanceOffset(anatomy, primitive.Group, headBone, head, offset);
+                {
+                    // Eye avoidance can move a horn root back outside the skull. Re-seat it
+                    // after each small clearance step so the correction slides around the head
+                    // surface instead of leaving the appendage detached.
+                    for (int pass = 0; pass < 3; pass++)
+                    {
+                        Vec3 clearance = EyeClearanceOffset(anatomy, primitive.Group, headBone, head, offset);
+                        if (clearance.LengthSquared < 1e-10) break;
+                        offset += clearance;
+                        offset = KeepRootEmbedded(skull, head, rootWorld, offset, target);
+                    }
+                }
 
                 if (offset.LengthSquared > 1e-10)
                     _groupOffsets[primitive.Group] = offset;
             }
+        }
+
+        private static Vec3 KeepRootEmbedded(PrimitiveDef skull, Xform head,
+            Vec3 rootWorld, Vec3 offset, double target)
+        {
+            Vec3 localRoot = head.InversePoint(rootWorld + offset);
+            Vec3 relative = skull.LocalRotation.Conjugate.Rotate(localRoot - skull.LocalA);
+            double x = Math.Max(0.4, skull.Radii.X);
+            double y = Math.Max(0.4, skull.Radii.Y);
+            double z = Math.Max(0.4, skull.Radii.Z);
+            double normalized = Math.Sqrt(relative.X * relative.X / (x * x) +
+                relative.Y * relative.Y / (y * y) + relative.Z * relative.Z / (z * z));
+            if (normalized <= target || normalized < 1e-8) return offset;
+            Vec3 localTarget = skull.LocalA + skull.LocalRotation.Rotate(relative / normalized * target);
+            return offset + head.Point(localTarget) - (rootWorld + offset);
         }
 
         private static Vec3 EyeClearanceOffset(CreatureAnatomy anatomy, int groupIndex,
