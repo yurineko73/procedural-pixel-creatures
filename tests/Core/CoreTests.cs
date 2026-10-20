@@ -42,6 +42,10 @@ namespace PixelCreatures.Tests
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
+            r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
+            r.Run("export.preview_weapon_hand_socket", ctx => PreviewSocketSmoke(ctx));
+            r.Run("export.preview_extreme_garment_fallback", ctx => PreviewGarmentFitSmoke(ctx));
+            r.Run("export.preview_tiny_sdf_island_cleanup", ctx => PreviewMeshCleanerSmoke(ctx));
             r.Run("equipment.style_overlay_deterministic", ctx => EquipmentStyleSmoke(ctx, registry));
             r.Run("equipment.slot_seeds_are_independent", ctx => EquipmentSlotIndependence(ctx, registry));
             r.Run("equipment.native_gear_slot_seeds_are_independent", ctx => NativeGearSlotIndependence(ctx, registry));
@@ -109,6 +113,96 @@ namespace PixelCreatures.Tests
             ctx.True(fusedSkin.BoundaryEdgeCount == 0 && fusedSkin.NonManifoldEdgeCount == 0,
                 "the fused organic skin must be a closed two-manifold surface");
             ctx.True(result.Triangles > 0, "organic union must generate a nonempty surface");
+        }
+
+        private static void PreviewAttachmentSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 100);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int hand = b.Bone("hand", root, Vec3.Zero, Quat.Identity, 0, BoneRole.Hand, 1);
+            int g = b.Group("armR", 0.4);
+            b.Ellipsoid(g, hand, Vec3.Zero, new Vec3(2, 2, 2), MaterialSlot.Primary).Tag = "armR.palm";
+            var near = b.Cone(g, hand, new Vec3(2.4, 0, 0), 0.4,
+                hand, new Vec3(3.4, 0, 0), 0.3, MaterialSlot.Accent);
+            near.Tag = "armR.claw";
+            var far = b.Cone(g, hand, new Vec3(20, 0, 0), 0.4,
+                hand, new Vec3(21, 0, 0), 0.3, MaterialSlot.Accent);
+            far.Tag = "armR.claw";
+            var a = b.Build(1);
+            ctx.True(PreviewAttachmentRepair.TryRepair(a, near, out PrimitiveDef corrected),
+                "nearby claw should remain attached");
+            ctx.True(corrected.LocalA.X < near.LocalA.X && corrected.LocalB.X < near.LocalB.X,
+                "claw should be projected back into the host shell");
+            ctx.True(!PreviewAttachmentRepair.TryRepair(a, far, out _),
+                "faraway microscopic claw must be suppressed");
+            ctx.True(near.LocalA.X == 2.4, "export repair must not mutate source anatomy");
+            string obj = ObjMeshExporter.Export(a, 8, 4).ObjText;
+            ctx.True(!obj.Contains("o primitive_2", StringComparison.Ordinal),
+                "detached claw must not appear in final OBJ");
+        }
+
+        private static void PreviewSocketSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 101);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int lower = b.Bone("forearm", root, new Vec3(0, 4, 0), Quat.Identity, 0, BoneRole.ArmLower, 1);
+            int hand = b.Bone("hand", lower, new Vec3(0, -2, 0), Quat.Identity, 0, BoneRole.Hand, 1);
+            int g = b.Group("armR", 0.4);
+            b.Ellipsoid(g, hand, new Vec3(-0.3, 0, 0), new Vec3(1, 1, 1),
+                MaterialSlot.Primary).Tag = "armR.palm";
+            int weapon = b.Group("weapon", 0.3);
+            var shaft = b.Cone(weapon, hand, new Vec3(0, -8, 0), 0.45,
+                hand, new Vec3(0, 8, 0), 0.45, MaterialSlot.Accent);
+            shaft.Tag = "weapon.spear";
+            var a = b.Build(1);
+            var sockets = new PreviewEquipmentSockets(a);
+            var rest = a.Skeleton.RestWorld(hand);
+            Vec3 oldBase = rest.Point(shaft.LocalA), oldTip = rest.Point(shaft.LocalB);
+            Vec3 newBase = sockets.Transform(a, shaft, oldBase);
+            Vec3 newTip = sockets.Transform(a, shaft, oldTip);
+            ctx.True((newTip - newBase).Length < (oldTip - oldBase).Length,
+                "weapon socket should reduce an excessively low-hanging long shaft");
+            ctx.True(newTip.Y > newBase.Y, "weapon should point upright in rest-pose preview");
+            ctx.True(sockets.RadiusScale(a, shaft) > 0 && sockets.RadiusScale(a, shaft) <= 1,
+                "weapon socket must use a valid positive uniform scale");
+            ctx.True(shaft.LocalA.Y == -8, "socket adjustment must not change the source weapon");
+        }
+
+        private static void PreviewGarmentFitSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 102);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int g = b.Group("body", 0.8);
+            b.Ellipsoid(g, root, Vec3.Zero, new Vec3(3, 2, 2), MaterialSlot.Primary).Tag = "hips";
+            b.Ellipsoid(g, root, new Vec3(3, 0, 0), new Vec3(3, 8, 8), MaterialSlot.Primary).Tag = "chest";
+            int skirtGroup = b.Group("gear.skirt", 0.4);
+            b.Ellipsoid(skirtGroup, root, new Vec3(-2, 0, 0),
+                new Vec3(3, 3, 3), MaterialSlot.Cloth);
+            var a = b.Build(1);
+            var garments = ImplicitBodyMesher.BuildClothingGroups(a);
+            var fit = PreviewGarmentFit.Evaluate(a, garments);
+            ctx.True(fit.ReplacedGroupIndices.Contains(skirtGroup), "narrow-hip skirt must downgrade");
+            ctx.True(fit.FallbackHem != null && fit.FallbackHem.Material == MaterialSlot.Cloth,
+                "downgrade must generate one fitted cloth hem");
+            ctx.True(ObjMeshExporter.Export(a, 8, 4).ObjText.Contains("o garment_fitted_short_hem", StringComparison.Ordinal),
+                "export must emit the fitted garment instead of hanging panel shells");
+        }
+
+        private static void PreviewMeshCleanerSmoke(TestContext ctx)
+        {
+            var mesh = new ImplicitBodyMesher.MeshData();
+            mesh.Vertices.Add(new Vec3(0, 0, 0));
+            mesh.Vertices.Add(new Vec3(3, 0, 0));
+            mesh.Vertices.Add(new Vec3(0, 3, 0));
+            mesh.Vertices.Add(new Vec3(20, 0, 0));
+            mesh.Vertices.Add(new Vec3(20.1, 0, 0));
+            mesh.Vertices.Add(new Vec3(20, 0.1, 0));
+            for (int i = 0; i < 12; i++)
+                mesh.Faces.Add(new ImplicitBodyMesher.Face(0, 1, 2, MaterialSlot.Primary));
+            mesh.Faces.Add(new ImplicitBodyMesher.Face(3, 4, 5, MaterialSlot.Primary));
+            ctx.True(PreviewMeshCleaner.RemoveTinyIslands(mesh) == 1,
+                "tiny isolated mesh triangle should be removed");
+            ctx.True(mesh.Faces.Count == 12, "primary mesh component must remain intact");
         }
 
         private static void ObjTwoSidedTriangleNormals(TestContext ctx)
