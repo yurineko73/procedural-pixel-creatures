@@ -49,9 +49,11 @@ namespace PixelCreatures.Core.Export
             var emitter = new MeshEmitter(obj, unitsPerPixel);
             var organicBody = ImplicitBodyMesher.Build(anatomy);
             var garmentMeshes = ImplicitBodyMesher.BuildClothingGroups(anatomy);
+            var garmentFit = PreviewGarmentFit.Evaluate(anatomy, garmentMeshes);
             var mergedPrimitiveIndices = new HashSet<int>(organicBody.PrimitiveIndices);
             foreach (var garment in garmentMeshes)
                 mergedPrimitiveIndices.UnionWith(garment.PrimitiveIndices);
+            mergedPrimitiveIndices.UnionWith(garmentFit.ReplacedPrimitiveIndices);
             var sockets = new PreviewEquipmentSockets(anatomy);
 
             for (int index = 0; index < anatomy.Primitives.Count; index++)
@@ -90,8 +92,18 @@ namespace PixelCreatures.Core.Export
             emitter.AppendMesh(organicBody, "organic_body");
             foreach (var garment in garmentMeshes)
             {
+                if (garmentFit.ReplacedGroupIndices.Contains(garment.GroupIndex)) continue;
                 string groupName = anatomy.Groups[garment.GroupIndex].Name ?? "garment";
                 emitter.AppendMesh(garment, "garment_" + groupName.Replace('.', '_').Replace(' ', '_'));
+            }
+            if (garmentFit.FallbackHem != null)
+            {
+                PrimitiveDef hem = garmentFit.FallbackHem;
+                obj.AppendLine("o garment_fitted_short_hem");
+                obj.AppendLine("usemtl Cloth");
+                Xform pelvis = anatomy.Skeleton.RestWorld(hem.BoneA);
+                Xform local = Xform.FromQuat(hem.LocalRotation, hem.LocalA);
+                emitter.Ellipsoid(v => pelvis.Point(local.Point(v)), hem.Radii, sides, rings);
             }
 
             // Facial features are stored separately from body primitives in CreatureAnatomy.
