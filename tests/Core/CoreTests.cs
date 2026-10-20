@@ -41,6 +41,7 @@ namespace PixelCreatures.Tests
             r.Run("motion.turning_in_place_reorients_body", ctx => TurnInPlace(ctx, registry, factory));
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
             r.Run("export.multiview_depth_reconstruction", ctx => MultiviewReconstructionSmoke(ctx, registry));
+            r.Run("export.geometry_fit_prototype_is_bounded", ctx => GeometryFitPrototypeSmoke(ctx, registry));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("export.preview_reported_seed_regressions", ctx => PreviewScreenshotSeedsSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
@@ -124,6 +125,46 @@ namespace PixelCreatures.Tests
                 "Reconstructed surfaces must preserve semantic anatomy material slots");
             ctx.True(!first.Contains("usemtl px_", StringComparison.Ordinal),
                 "Per-triangle pixel colors should not create a noisy mosaic of flat materials");
+        }
+
+
+        private static void GeometryFitPrototypeSmoke(TestContext ctx, CreatureRegistry registry)
+        {
+            var family = registry.GetFamily("biped");
+            var genome = GenomeFactory.Sample(family, 12345UL)
+                .With("gear.weapon", 0).With("gear.outfit", 0)
+                .With("gear.helmet", 0).With("gear.shield", 0).With("gear.pauldrons", 0);
+            CreatureModel model = new CreatureFactory(registry).Build(genome);
+            GeometryFitResult fit = GeometryFitPrototype.Fit(model, new GeometryFitOptions
+            {
+                Directions = 4,
+                Passes = 1,
+                ScaleStep = 0.04,
+                OffsetStep = 0.25,
+                MaxScaleDelta = 0.08,
+                MaxOffset = 0.5,
+                EllipsoidSides = 8,
+                EllipsoidRings = 5,
+            });
+
+            ctx.True(fit.ReferenceViews.Length == 4, "Geometry fit must compare the requested number of reference views");
+            ctx.True(fit.Anatomy.Primitives.Count == model.Anatomy.Primitives.Count,
+                "Geometry fitting must preserve the source primitive inventory");
+            ctx.True(fit.Evaluations >= 1, "Geometry fit must report its objective evaluations");
+            ctx.True(!double.IsNaN(fit.InitialMeanIoU) && !double.IsInfinity(fit.InitialMeanIoU) &&
+                fit.InitialMeanIoU >= 0 && fit.InitialMeanIoU <= 1,
+                "Initial primitive-projection IoU must be finite and normalized");
+            ctx.True(!double.IsNaN(fit.FittedMeanIoU) && !double.IsInfinity(fit.FittedMeanIoU) &&
+                fit.FittedMeanIoU >= 0 && fit.FittedMeanIoU <= 1,
+                "Fitted primitive-projection IoU must be finite and normalized");
+            double initialScore = fit.InitialMeanIoU * 0.7 + fit.InitialWorstIoU * 0.3;
+            double fittedScore = fit.FittedMeanIoU * 0.7 + fit.FittedWorstIoU * 0.3;
+            ctx.True(fittedScore + 1e-8 >= initialScore,
+                "The bounded coordinate search must not return a worse multi-view silhouette score");
+            foreach (PrimitiveDef primitive in fit.Anatomy.Primitives)
+                ctx.True(primitive.LocalA.IsFinite && primitive.LocalB.IsFinite && primitive.LocalC.IsFinite &&
+                    primitive.Radii.IsFinite,
+                    "Fitted geometry must retain finite primitive parameters");
         }
 
         private static void ObjExportSmoke(TestContext ctx, CreatureRegistry reg)
