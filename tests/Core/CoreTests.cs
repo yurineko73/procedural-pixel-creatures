@@ -45,6 +45,9 @@ namespace PixelCreatures.Tests
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
+            r.Run("export.preview_dental_lip_fit", ctx => PreviewDentalLipFitSmoke(ctx));
+            r.Run("export.preview_claw_toe_fit", ctx => PreviewClawToeFitSmoke(ctx));
+            r.Run("export.preview_fixed_user_seeds", ctx => PreviewFixedUserSeedsSmoke(ctx, registry));
             r.Run("export.preview_ancestor_limb_attachment", ctx => PreviewAncestorAttachmentSmoke(ctx));
             r.Run("export.preview_fuses_soft_accent_and_faceted_skin", ctx => PreviewSkinUnionSmoke(ctx));
             r.Run("export.preview_standalone_appendage_materials", ctx => PreviewStandaloneAppendageSmoke(ctx));
@@ -154,6 +157,83 @@ namespace PixelCreatures.Tests
             ctx.True(fusedSkin.BoundaryEdgeCount == 0 && fusedSkin.NonManifoldEdgeCount == 0,
                 "the fused organic skin must be a closed two-manifold surface");
             ctx.True(result.Triangles > 0, "organic union must generate a nonempty surface");
+        }
+
+        private static void PreviewDentalLipFitSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 113);
+            int head = b.Bone("head", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Head);
+            int body = b.Group("head", 0.6);
+            b.Ellipsoid(body, head, Vec3.Zero, new Vec3(4, 4, 4), MaterialSlot.Primary)
+                .Tag = "head.cranium";
+            b.Cone(body, head, new Vec3(2, 0, 0), 3, head,
+                new Vec3(8, 0, 0), 2.5, MaterialSlot.Primary).Tag = "head.snout";
+            int teethGroup = b.Group("head.teeth", 0.4);
+            var tooth = b.Cone(teethGroup, head, new Vec3(6, -1.4, 1.3), 0.55,
+                head, new Vec3(6.2, -5.0, 1.3), 0.3, MaterialSlot.Teeth);
+            var a = b.Build(1);
+            ctx.True(PreviewDentalFit.Applies(a, tooth), "upper tooth should use the lip fitter");
+            ctx.True(PreviewDentalFit.TryFit(a, tooth, out PrimitiveDef fitted),
+                "lip fitting should preserve a readable upper tooth");
+            ctx.True(fitted.LocalA.Y < tooth.LocalA.Y,
+                "tooth root should sit inside the underside of the upper muzzle");
+            ctx.True((fitted.LocalB - fitted.LocalA).Length <
+                (tooth.LocalB - tooth.LocalA).Length,
+                "the closed-mouth static preview must not export the entire exposed 2D fang");
+            ctx.True(Math.Abs(fitted.LocalA.Z) <= 3 &&
+                fitted.LocalB.Y < fitted.LocalA.Y,
+                "upper teeth must remain inside the muzzle width and point down");
+            ctx.True(tooth.LocalA.Y == -1.4, "3D lip fitting cannot mutate 2D tooth genes");
+        }
+
+        private static void PreviewClawToeFitSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 114);
+            int foot = b.Bone("foot", -1, new Vec3(0, 1.0, 0),
+                Quat.Identity, 0, BoneRole.Foot, 1);
+            int group = b.Group("legR", 0.5);
+            var paw = b.Ellipsoid(group, foot, new Vec3(0, 0.10, 0),
+                new Vec3(2, 1, 1), MaterialSlot.Primary);
+            paw.Tag = "legR.foot";
+            var claw = b.Cone(group, foot, new Vec3(4, 0.4, 0.3), 0.4,
+                foot, new Vec3(6, -0.6, 0.4), 0.3, MaterialSlot.Accent);
+            claw.Tag = "legR.claw";
+            var a = b.Build(1);
+            ctx.True(PreviewClawFit.Applies(claw), "toe should use the semantic claw fitter");
+            ctx.True(PreviewClawFit.TryFit(a, claw, out PrimitiveDef fixedClaw),
+                "a toe nail should remain visible on the final foot");
+            Vec3 relative = fixedClaw.LocalA - paw.LocalA;
+            double q = relative.X * relative.X / (paw.Radii.X * paw.Radii.X) +
+                relative.Y * relative.Y / (paw.Radii.Y * paw.Radii.Y) +
+                relative.Z * relative.Z / (paw.Radii.Z * paw.Radii.Z);
+            ctx.True(q < 1, "claw base must overlap the same-bone paw instead of floating");
+            ctx.True(fixedClaw.LocalA.X < claw.LocalA.X &&
+                fixedClaw.LocalB.X > fixedClaw.LocalA.X,
+                "claw should connect to and point forward from the paw");
+            ctx.True(a.Skeleton.RestWorld(foot).Point(fixedClaw.LocalB).Y >= 0.33,
+                "toe tip must not poke beneath the preview platform");
+            ctx.True(claw.LocalA.X == 4, "toe fitting cannot mutate original anatomy");
+        }
+
+        private static void PreviewFixedUserSeedsSmoke(TestContext ctx, CreatureRegistry reg)
+        {
+            // Reproduce the precise 12345 body / 54321 equipment seeds in the user screenshots.
+            var family = reg.Families.First(f => f.Id == "biped");
+            const ulong bodySeed = 12345UL, gearSeed = 54321UL;
+            var body = GenomeFactory.Sample(family, bodySeed);
+            var colours = NativeGearRandomizer.ApplyEquipmentColors(body, family,
+                StableHash.Derive(gearSeed, "equipment.colors"));
+            var equipped = NativeGearRandomizer.ApplyNativeGearGenes(colours, family,
+                gearSeed, EquipmentSeedSet.FromMaster(gearSeed));
+            var anatomy = family.BuildAnatomy(equipped, reg);
+            string result = ObjMeshExporter.Export(anatomy, 8, 4).ObjText;
+            ctx.True(result.Contains("o organic_body_", StringComparison.Ordinal),
+                "fixed 12345/54321 seed should produce continuous skin");
+            ctx.True(!result.Contains("NaN", StringComparison.Ordinal) &&
+                !result.Contains("Infinity", StringComparison.Ordinal),
+                "fixed 12345/54321 seed should not export nonfinite geometry");
+            ctx.True(result == ObjMeshExporter.Export(anatomy, 8, 4).ObjText,
+                "fixed user body and equipment seeds must be deterministic");
         }
 
         private static void PreviewAttachmentSmoke(TestContext ctx)
