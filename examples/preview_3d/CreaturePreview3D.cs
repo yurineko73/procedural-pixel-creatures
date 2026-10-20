@@ -580,8 +580,8 @@ namespace PixelCreatures.Examples
                     objText = reconstructed.ToObj(captures, model.Palette, model.Anatomy, PreviewUnitsPerPixel);
                     SetReference(captures[0], model);
                     mtlText = MultiviewResult.MaterialLibrary(model.Palette);
-                    vertexCount = reconstructed.Vertices.Count;
-                    triangleCount = reconstructed.Triangles.Count;
+                    vertexCount = reconstructed.ExportedVertices;
+                    triangleCount = reconstructed.ExportedTriangles;
                     double[] iou = MultiviewSilhouetteMetrics.IntersectionOverUnion(reconstructed, captures);
                     double mean = 0, worst = 1;
                     foreach (double value in iou) { mean += value; worst = Math.Min(worst, value); }
