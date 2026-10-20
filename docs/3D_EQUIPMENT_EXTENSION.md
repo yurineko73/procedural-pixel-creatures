@@ -147,3 +147,17 @@ Additional CoreHarness tests cover ancestor-segment claw attachment, soft Accent
 Static 3D export now enforces semantic separation of standalone appendage groups irrespective of material slot, avoiding the earlier Primary/Secondary vs Accent/White union inconsistency. Eye features use `PreviewFeatureFit` to cap stamp-derived 3D mesh sizes to a same-bone host ellipsoid, optionally add a connected backing bulb for a bare eye-stalk on an eligible antenna/tentacle bone, and apply a bounded host-surface correction to **all** eye layers together. Distant features are not teleported to unrelated geometry. Tiny unsupported claws/teeth are dropped at export rather than left floating; source Genome/Anatomy remains unchanged.
 
 Regression additions include multi-family seeds from user screenshots, semantic appendage preservation, eye-stalk support and bounded whole-eye projection. **No .NET / Godot runtime verification has been performed yet.** The branch is ready for local compilation and front/side/rear screenshot comparison; do not mark eye fitting or attachment behavior as visually validated until then.
+
+
+## Legacy-authored semantic geometry fit (2026-10-20)
+
+The original 2D blocks intentionally create upper teeth from the head's underside `-Y`, paw claws near the paw's `+X` silhouette, and weapons on hand-local `(0.12,1,0)`. Those authored points are not generic 3D surface projections. The static OBJ exporter now routes these elements through independent anatomy-aware modules:
+
+- `PreviewDentalFit`: upper lip placement from the actual `.snout` tapered segment on the same head bone, capped exposed length for a closed mouth; lower jaw tusks remain controlled by their own jaw-local coordinates.
+- `PreviewClawFit`: attach nails/claws to the same-bone `.foot/.paw/.palm` front surface, preserving the forward axis and modest downward pitch; fall back to ancestor repair when an arthropod/jointed limb has no paw.
+- `PreviewEquipmentSockets`: rotate a *whole grouped weapon* from its original hand-local shaft direction to a type-appropriate rest vector, about its original hand grip. No change to weapon-seed selection or 2D construction.
+- `ObjMeshExporter`: exclusive semantic dispatch prevents generic nearest-ellipsoid repair from undoing intentional mouth/toe positions.
+
+Hand claws now have explicit tags, consistent with foot claws, to identify their parent. The new modules operate only on exported primitive clones/coordinates and leave original 2D genome/anatomy layout intact.
+
+Regressions: `export.preview_dental_lip_fit`, `export.preview_claw_toe_fit`, `export.preview_fixed_user_seeds` (Body=12345, Equipment=54321). **All pending executable test / Godot rendering verification**.
