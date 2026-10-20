@@ -55,10 +55,12 @@ namespace PixelCreatures.Core.Export
                 mergedPrimitiveIndices.UnionWith(garment.PrimitiveIndices);
             mergedPrimitiveIndices.UnionWith(garmentFit.ReplacedPrimitiveIndices);
             var sockets = new PreviewEquipmentSockets(anatomy);
+            var headAttachmentFit = new PreviewHeadAttachmentFit(anatomy);
+            var legChainFit = new PreviewSegmentChainFit(anatomy);
 
             for (int index = 0; index < anatomy.Primitives.Count; index++)
             {
-                if (mergedPrimitiveIndices.Contains(index)) continue;
+                if (mergedPrimitiveIndices.Contains(index) || legChainFit.PrimitiveIndices.Contains(index)) continue;
                 PrimitiveDef source = anatomy.Primitives[index];
                 PrimitiveDef p;
                 // A tooth is fitted to the *upper lip*, and a claw to its *own toe*.
@@ -77,24 +79,47 @@ namespace PixelCreatures.Core.Export
                 obj.Append("o primitive_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine();
                 obj.Append("usemtl ").Append(p.Material.ToString()).AppendLine();
                 Xform xa = anatomy.Skeleton.RestWorld(p.BoneA);
+                Vec3 Position(Vec3 world) => headAttachmentFit.Transform(p, sockets.Transform(anatomy, p, world));
                 if (p.Kind == PrimKind.Ellipsoid)
                 {
                     Xform local = Xform.FromQuat(p.LocalRotation, p.LocalA);
-                    emitter.Ellipsoid(v => sockets.Transform(anatomy, p, xa.Point(local.Point(v))), p.Radii, sides, rings);
+                    emitter.Ellipsoid(v => Position(xa.Point(local.Point(v))), p.Radii, sides, rings);
                 }
                 else if (p.Kind == PrimKind.RoundCone)
                 {
-                    Vec3 a = sockets.Transform(anatomy, p, xa.Point(p.LocalA));
-                    Vec3 b = sockets.Transform(anatomy, p, anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB));
+                    Vec3 a = Position(xa.Point(p.LocalA));
+                    Vec3 b = Position(anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB));
                     double scale = sockets.RadiusScale(anatomy, p);
                     emitter.Frustum(a, b, p.RadiusA * scale, p.RadiusB * scale, sides);
                 }
                 else if (p.Kind == PrimKind.Triangle)
                 {
-                    Vec3 a = sockets.Transform(anatomy, p, xa.Point(p.LocalA));
-                    Vec3 b = sockets.Transform(anatomy, p, anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB));
-                    Vec3 c = sockets.Transform(anatomy, p, anatomy.Skeleton.RestWorld(p.BoneC).Point(p.LocalC));
+                    Vec3 a = Position(xa.Point(p.LocalA));
+                    Vec3 b = Position(anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB));
+                    Vec3 c = Position(anatomy.Skeleton.RestWorld(p.BoneC).Point(p.LocalC));
                     emitter.Triangle(a, b, c, (p.Flags & PrimFlags.TwoSided) != 0);
+                }
+            }
+
+            // A leg chain uses the original three bone joints, with no intervening grid
+            // resampling. Rounded joints overlap the adjacent tube ends and the thorax,
+            // so even sub-voxel arthropod legs cannot turn into disconnected island pieces.
+            foreach (PreviewSegmentChainFit.Chain chain in legChainFit.Chains)
+            {
+                for (int i = 0; i < chain.Segments.Count; i++)
+                {
+                    PreviewSegmentChainFit.Segment segment = chain.Segments[i];
+                    obj.Append("o arthropod_leg_").Append(chain.Group).Append('_').Append(i).AppendLine();
+                    obj.Append("usemtl ").AppendLine(segment.Material.ToString());
+                    emitter.Frustum(segment.Start, segment.End,
+                        segment.StartRadius, segment.EndRadius, Math.Max(10, sides));
+                    emitter.Ellipsoid(v => segment.Start + v,
+                        new Vec3(segment.StartRadius, segment.StartRadius, segment.StartRadius),
+                        Math.Max(10, sides), Math.Max(6, rings));
+                    if (i == chain.Segments.Count - 1)
+                        emitter.Ellipsoid(v => segment.End + v,
+                            new Vec3(segment.EndRadius, segment.EndRadius, segment.EndRadius),
+                            Math.Max(10, sides), Math.Max(6, rings));
                 }
             }
 
