@@ -367,8 +367,16 @@ namespace PixelCreatures.Core.Export
             var triangles = new List<Triangle3>();
             using var reader = new StringReader(objText);
             string? line;
+            bool skipFeatureObject = false;
             while ((line = reader.ReadLine()) != null)
             {
+                if (line.StartsWith("o ", StringComparison.Ordinal))
+                {
+                    // The 2D G-buffer silhouette intentionally excludes the separately stamped
+                    // eyes/nostrils/spots. Exclude their dedicated OBJ objects for a fair body IoU.
+                    skipFeatureObject = line.StartsWith("o feature_", StringComparison.Ordinal);
+                    continue;
+                }
                 if (line.StartsWith("v ", StringComparison.Ordinal))
                 {
                     string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -378,7 +386,7 @@ namespace PixelCreatures.Core.Export
                         double.Parse(parts[2], CultureInfo.InvariantCulture) / unitsPerPixel,
                         double.Parse(parts[3], CultureInfo.InvariantCulture) / unitsPerPixel));
                 }
-                else if (line.StartsWith("f ", StringComparison.Ordinal))
+                else if (!skipFeatureObject && line.StartsWith("f ", StringComparison.Ordinal))
                 {
                     string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length < 4) continue;
