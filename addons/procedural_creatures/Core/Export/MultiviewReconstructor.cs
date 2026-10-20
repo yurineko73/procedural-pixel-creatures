@@ -303,7 +303,26 @@ namespace PixelCreatures.Core.Export
                 int i = y * cap.Width + x;
                 double bound = view.Distance[i] - options.SilhouetteSlack;
                 if (cap.Visible[i])
-                    bound = Math.Max(bound, v.Z - cap.Depth[i] - options.DepthSlack);
+                {
+                    // Use the source rasterizer's measured surface normal as a local tangent plane.
+                    // A pure Z-depth constraint over-expands steep surfaces and creates chunky facets
+                    // around shoulders, head pieces and feet.
+                    double nx = cap.NormalX[i], ny = cap.NormalY[i], nz = cap.NormalZ[i];
+                    double nl = Math.Sqrt(nx * nx + ny * ny + nz * nz);
+                    if (nl > 1e-8)
+                    {
+                        nx /= nl; ny /= nl; nz /= nl;
+                        if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+                        double sx = x + 0.5 - cap.OriginX;
+                        double sy = cap.OriginY - (y + 0.5);
+                        double planeDistance = nx * (v.X - sx) + ny * (v.Y - sy) + nz * (v.Z - cap.Depth[i]);
+                        bound = Math.Max(bound, planeDistance - options.DepthSlack);
+                    }
+                    else
+                    {
+                        bound = Math.Max(bound, v.Z - cap.Depth[i] - options.DepthSlack);
+                    }
+                }
                 field = Math.Max(field, bound);
                 if (field > 2.0) return field;
             }
