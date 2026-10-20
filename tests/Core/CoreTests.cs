@@ -258,6 +258,12 @@ namespace PixelCreatures.Tests
             double normalized = Math.Sqrt(localRoot.X * localRoot.X / 25.0 +
                 localRoot.Y * localRoot.Y / 25.0 + localRoot.Z * localRoot.Z / 16.0);
             ctx.True(normalized < 1.0, "fitted horn root must lie inside the cranium");
+            Vec3 localRootWithEye = withEye.Skeleton.RestWorld(hornWithEye.BoneA)
+                .InversePoint(rootWithEye + offsetWithEye);
+            double normalizedWithEye = Math.Sqrt(localRootWithEye.X * localRootWithEye.X / 25.0 +
+                localRootWithEye.Y * localRootWithEye.Y / 25.0 + localRootWithEye.Z * localRootWithEye.Z / 16.0);
+            ctx.True(normalizedWithEye < 1.0,
+                "eye clearance must not pull the horn root back outside the cranium");
 
             FeatureDef eye = withEye.Features.First(f => f.Kind == FeatureKind.Eye);
             Vec3 eyeWorld = withEye.Skeleton.RestWorld(eye.Bone).Point(eye.LocalPosition);
