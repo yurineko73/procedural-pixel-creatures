@@ -246,3 +246,34 @@ User screenshot feedback: `biped` Body Seed **12345** / Equipment Seed **54321**
 **Verification:** structural checks and source wiring inspected; still **not compiled, unit-tested or rendered in Godot** because no `dotnet`, `csc`, `godot` or GitHub-clone network access is available in this session. Existing GitHub Actions remains disabled. Do not mark P0 resolved until the tests and visual checks pass.
 
 **Next local acceptance:** first re-run fixed seeds above from front, side and top views. Require a recognizable dark mouth slit below the snout, teeth actually rooted to that lip/cavity, two embedded ear bases, and continuous arthropod leg chains that connect to the thorax. Also inspect quadruped/reptile and humanoid faces for unintended mouth carving. Expand gear variants only after geometry stabilizes.
+
+
+## 2026-10-20 — Visual acceptance FAILED: 3D conversion is losing 2D rendering semantics
+
+User tested the latest preview and provided four screenshots. Do NOT mark mouth/appendage P0 complete.
+
+**Observed failures**
+- Biped Body Seed 12345 / Equipment Seed 54321: mouth cut is below the muzzle and looks like an exposed red cavity with detached-looking white teeth. The synthetic cutter in the latest patch is not an acceptable mouth solution.
+- Biped Body Seed 16114805862360663785 / Equipment Seed 3668598035714744795: giant pale horn/ear-like appendages look like capped cones, their bases are not convincingly rooted, and toe/claw tips look separated from the paw.
+- Side view of the same model: teeth are a row of isolated white/red primitives rather than an anatomically framed oral cavity.
+- Red-creature screenshot: horn-like points visually collide with/cover the eye.
+
+**Source audit — confirmed**
+- Main and feature branches have identical hashes for `Core/Shapes/Heads.cs` and `Core/Shapes/Appendages.cs`. The original source already uses cones/round-cone segments for individual teeth, ears and horns; this is intentional primitive anatomy, not proof that the original final 2D image showed disconnected cones.
+- `Heads.cs` explicitly documents the upper tooth row as hidden inside the lip until the mouth opens. Its mouth interior is placed relative to `hingeLocal` and `chinLocal`, in an `Interior` group.
+- Original `CreatureRenderer.cs` contains `CleanupInterior()`: it peels interior-group pixels touching the background so the closed mouth does not leak below the head. The 2D renderer also uses group depth/layer semantics. The 3D OBJ exporter does not reproduce this pixel-layer cleanup or the jaw animation.
+- The last patch's `BuildMouthCutters` detects the original cavity but then ignores its actual center and jaw/chin seam, placing a guessed cutter at 70% along the snout with a fixed downward offset. This is why the mouth can appear on the underside of the snout. Rework or remove this heuristic; do not treat it as a successful fix.
+- `PreviewHeadAttachmentFit` only targets `BoneRole.Ear`; it does not fix horn groups. `Horns.BuildChain` generates segmented cone primitives, and the OBJ exporter emits each as a flat-capped frustum without a fused smooth root. Eye/horn clearance is not enforced.
+- `PreviewClawFit` only relocates the claw primitive. It does not fuse the claw base into the paw mesh or validate the visible surface intersection; the user's floating-looking toe tips show this is insufficient.
+- Arthropod direct-chain output has not yet been visually accepted; code existence alone is not a pass.
+
+**Architectural conclusion**
+The recurring issue is not a few bad offsets. The original is a 2D silhouette/layer/animation generator, while the OBJ exporter turns its primitives into independent capped 3D shells and only fuses selected body masses. The 2D renderer's interior cleanup, depth bias, occlusion order, and animated jaw cannot be assumed to transfer to a static 3D mesh.
+
+**Next implementation must be anatomy-aware, not another nearest-surface patch**
+1. Remove/rework the guessed mouth cutter. Build a real static mouth assembly from the source jaw hinge, chin, upper muzzle and cavity geometry. Make upper teeth short and embedded at the lip line; show only plausible tooth tips with mouth closed. If the generator has no suitable lip seam, add explicit 3D mouth metadata in the head builder rather than guessing from snout percentage.
+2. Add a separate semantic appendage mesher for ears and horns: smooth tapered curved tubes, a base collar/root embedded into the skull, connected segment joints, and eye/face clearance checks. Never confuse a horn root with an ear root.
+3. Treat paw + toe/claw as a single connected assembly (fuse/union or deliberately embed roots past the visible surface); verify front/side/underside views.
+4. Render all reported fixed seeds in Godot before accepting. Add geometry-level checks for root intersection and eye clearance, plus visual approval screenshots. Keep the original 2D pipeline unchanged.
+
+Status: source audit done; visual acceptance failed. No further geometry changes should be accepted as complete without a local Godot render and test run.
