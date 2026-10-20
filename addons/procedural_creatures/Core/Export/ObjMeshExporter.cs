@@ -52,11 +52,13 @@ namespace PixelCreatures.Core.Export
             var mergedPrimitiveIndices = new HashSet<int>(organicBody.PrimitiveIndices);
             foreach (var garment in garmentMeshes)
                 mergedPrimitiveIndices.UnionWith(garment.PrimitiveIndices);
+            var sockets = new PreviewEquipmentSockets(anatomy);
 
             for (int index = 0; index < anatomy.Primitives.Count; index++)
             {
-                PrimitiveDef p = anatomy.Primitives[index];
                 if (mergedPrimitiveIndices.Contains(index)) continue;
+                PrimitiveDef source = anatomy.Primitives[index];
+                if (!PreviewAttachmentRepair.TryRepair(anatomy, source, out PrimitiveDef p)) continue;
                 if (p.Group < 0 || p.Group >= anatomy.Groups.Count) continue;
                 obj.Append("o primitive_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine();
                 obj.Append("usemtl ").Append(p.Material.ToString()).AppendLine();
@@ -64,19 +66,20 @@ namespace PixelCreatures.Core.Export
                 if (p.Kind == PrimKind.Ellipsoid)
                 {
                     Xform local = Xform.FromQuat(p.LocalRotation, p.LocalA);
-                    emitter.Ellipsoid(v => xa.Point(local.Point(v)), p.Radii, sides, rings);
+                    emitter.Ellipsoid(v => sockets.Transform(anatomy, p, xa.Point(local.Point(v))), p.Radii, sides, rings);
                 }
                 else if (p.Kind == PrimKind.RoundCone)
                 {
-                    Vec3 a = xa.Point(p.LocalA);
-                    Vec3 b = anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB);
-                    emitter.Frustum(a, b, p.RadiusA, p.RadiusB, sides);
+                    Vec3 a = sockets.Transform(anatomy, p, xa.Point(p.LocalA));
+                    Vec3 b = sockets.Transform(anatomy, p, anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB));
+                    double scale = sockets.RadiusScale(anatomy, p);
+                    emitter.Frustum(a, b, p.RadiusA * scale, p.RadiusB * scale, sides);
                 }
                 else if (p.Kind == PrimKind.Triangle)
                 {
-                    Vec3 a = xa.Point(p.LocalA);
-                    Vec3 b = anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB);
-                    Vec3 c = anatomy.Skeleton.RestWorld(p.BoneC).Point(p.LocalC);
+                    Vec3 a = sockets.Transform(anatomy, p, xa.Point(p.LocalA));
+                    Vec3 b = sockets.Transform(anatomy, p, anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB));
+                    Vec3 c = sockets.Transform(anatomy, p, anatomy.Skeleton.RestWorld(p.BoneC).Point(p.LocalC));
                     emitter.Triangle(a, b, c, (p.Flags & PrimFlags.TwoSided) != 0);
                 }
             }
