@@ -81,3 +81,10 @@ New regression tests were added, but **the branch is not yet verified by a .NET 
 In the static preview exporter, independently grouped horns, feelers and tentacles are preserved regardless of body palette colour; floating small claws/teeth without any valid body anchor are omitted; loose eyes are fitted as a single stack to the nearby supporting cranium, with limited travel; exposed eye-stalks may receive a small attached primary-colour supporting bulb. No 2D body/animation data is changed. New regression tests contain several Body Seeds reported in screenshots.
 
 Verification remains pending: this environment cannot run Godot/.NET or clone the repository over GitHub DNS. Test locally after pulling `feature/3d-modular-equipment`; check head/eye/pupil separation, background shadow of eye-stalks, and side/front/top anatomy under the same Body Seed and Equipment Seed.
+
+
+## 2026-10-20: lip, toe and weapon-grip semantic fixes
+
+For 3D OBJ export, upper teeth are now placed relative to the original snout/lip instead of the nearest generic surface, nails/claws are positioned from the same paw/palm ellipsoid rather than the old 2D toe-silhouette offset, and held weapons pivot around the original hand grip using a style-specific rest axis. Hand claw tagging has been made consistent with foot tagging. This affects the static preview only; the source 2D body/animation is not altered.
+
+**Please retest** Body Seed `12345` / Equipment Seed `54321` from front/side after rebuilding Godot, then switch to Body Seed `973718778264341244` / Equipment Seed `3941624577870863579`. Check mouth closure, paw nail connectivity, weapon orientation and platform intersection. Source regressions have been committed, but no .NET/Godot runtime test has been executed in the assistant environment.
