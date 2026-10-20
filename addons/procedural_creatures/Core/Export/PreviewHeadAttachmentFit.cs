@@ -143,7 +143,7 @@ namespace PixelCreatures.Core.Export
                 // Move the entire horn away from the closest eye-to-horn vector. The root is
                 // already buried deeply enough to remain attached after this small correction.
                 Vec3 away = (nearestPoint - eyeWorld).NormalizedOr(head.Dir(Vec3.UnitY));
-                additional += away * Math.Min(1.75, clearance - nearestDistance + 0.15);
+                additional += away * Math.Min(1.0, clearance - nearestDistance + 0.15);
             }
             return additional;
         }
