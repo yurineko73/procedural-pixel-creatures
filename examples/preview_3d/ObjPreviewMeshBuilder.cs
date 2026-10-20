@@ -189,7 +189,7 @@ void light() {
                     CullMode = BaseMaterial3D.CullModeEnum.Disabled,
                     AlbedoColor = new Color(color.R / 255f, color.G / 255f, color.B / 255f, color.A / 255f),
                     Roughness = 1.0f,
-                    Specular = 0.0f,
+                    MetallicSpecular = 0.0f,
                 };
             }
 

@@ -84,7 +84,7 @@ namespace PixelCreatures.Workshop
             root.AddChild(BuildToolbar());
 
             var main = new HSplitContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-            main.SplitOffset = 330;
+            main.SplitOffsets = new[] { 330 };
             root.AddChild(main);
             _editorView = main;
 
@@ -99,7 +99,7 @@ namespace PixelCreatures.Workshop
 
             var rightSplit = new HSplitContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
             main.AddChild(rightSplit);
-            var centerV = new VSplitContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, SplitOffset = 380 };
+            var centerV = new VSplitContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, SplitOffsets = new[] { 380 } };
             rightSplit.AddChild(centerV);
 
             // center: preview stage

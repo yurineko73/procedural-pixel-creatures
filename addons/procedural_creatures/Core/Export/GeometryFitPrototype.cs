@@ -428,7 +428,7 @@ namespace PixelCreatures.Core.Export
                 PrimitiveDef p = original.Clone();
                 if (p.Group >= 0 && p.Group < source.Groups.Count &&
                     TryGetFitRegionName(source.Groups[p.Group].Name, out string regionName) &&
-                    byName.TryGetValue(regionName, out FitRegion region))
+                    byName.TryGetValue(regionName, out FitRegion? region) && region != null)
                 {
                     Xform boneA = source.Skeleton.RestWorld(p.BoneA);
                     p.LocalA = TransformLocalPoint(boneA, p.LocalA, region);
@@ -464,7 +464,7 @@ namespace PixelCreatures.Core.Export
                 };
                 if (feature.Group >= 0 && feature.Group < source.Groups.Count &&
                     TryGetFitRegionName(source.Groups[feature.Group].Name, out string regionName) &&
-                    byName.TryGetValue(regionName, out FitRegion region))
+                    byName.TryGetValue(regionName, out FitRegion? region) && region != null)
                 {
                     Xform bone = source.Skeleton.RestWorld(feature.Bone);
                     feature.LocalPosition = TransformLocalPoint(bone, feature.LocalPosition, region);

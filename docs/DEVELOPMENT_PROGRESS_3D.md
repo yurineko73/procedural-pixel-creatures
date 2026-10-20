@@ -9,6 +9,23 @@
 
 ## Status
 
+**Build repair on geometry-fit branch (2026-10-20, Asia/Shanghai):** `dotnet build` passes
+with **0 errors and 0 warnings**. Fixed two `GeometryFitPrototype.ApplyRegions` dictionary
+lookups to receive nullable `FitRegion?` values and explicitly guard null before transforming
+primitives/features. Also applied the Godot `MetallicSpecular` and `SplitOffsets` API corrections
+that were absent from this branch; fitting transforms and layout offset values are unchanged.
+Godot 4.7.1 console import and both examples' standalone headless startup passed
+(`--quit-after 120 --max-fps 60`). Core harness command
+`dotnet run -c Release --project tools/core_harness/CoreHarness.csproj -- test reports geometry_fit 10`
+passed **1/1**. Godot `--headless --audio-driver Dummy --path . -- --self-test --quick
+--report=res://reports/self_test_report.json` passed **52/56**, including geometry fitting,
+example model generation and workshop checks. The same four geometry failures remain:
+`export.obj_static_all_families` (missing biped pupils), `export.obj_unifies_organic_primitives`
+(closed manifold), `export.preview_visible_mouth_cavity` (mouth manifold), and
+`export.preview_eyestalk_bulb_fit` (eye scaling). These are not build failures; separate geometry
+investigation is still needed. Visual acceptance remains pending. This is a local repair record;
+no Drive mirror update or GitHub push is claimed.
+
 **Baseline verification before the latest gear/face/toon changes (2026-10-19, Asia/Shanghai):** Godot 4.7.1 .NET was available locally. The prior preview controller build succeeded; both standalone examples passed import/headless startup; the core harness and Godot quick suite passed at that point. Those results are historical and do **not** validate the latest independent-seed, facial-feature-export, native gear randomizer or toon-shader changes below. The latest delta has only had static source review; rebuild and rerun all checks before declaring it validated.
 
 | Milestone | Status | Verification |
