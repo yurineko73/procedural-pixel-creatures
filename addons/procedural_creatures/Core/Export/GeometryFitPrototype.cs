@@ -4,6 +4,8 @@
 // adjusts only bounded group transforms, and scores a lightweight projection of parametric surfaces.
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using PixelCreatures.Core;
 using PixelCreatures.Core.Anatomy;
 using PixelCreatures.Core.Rendering;
@@ -20,30 +22,44 @@ namespace PixelCreatures.Core.Export
         public double MaxOffset = 0.5;
         public int EllipsoidSides = 8;
         public int EllipsoidRings = 5;
+        public int ExportSides = 20;
+        public int ExportRings = 12;
+        public double UnitsPerPixel = 0.04;
     }
 
     public sealed class GeometryFitResult
     {
         public CreatureAnatomy Anatomy { get; }
+        public ObjMeshResult FittedMesh { get; }
         public PixelDepthCapture[] ReferenceViews { get; }
         public double InitialMeanIoU { get; }
         public double FittedMeanIoU { get; }
         public double InitialWorstIoU { get; }
         public double FittedWorstIoU { get; }
+        public double InitialMeshMeanIoU { get; }
+        public double FittedMeshMeanIoU { get; }
+        public double InitialMeshWorstIoU { get; }
+        public double FittedMeshWorstIoU { get; }
         public int Evaluations { get; }
         public int AdjustedRegions { get; }
         public string ParameterSummary { get; }
 
-        internal GeometryFitResult(CreatureAnatomy anatomy, PixelDepthCapture[] referenceViews,
+        internal GeometryFitResult(CreatureAnatomy anatomy, ObjMeshResult fittedMesh, PixelDepthCapture[] referenceViews,
             double initialMeanIoU, double fittedMeanIoU, double initialWorstIoU, double fittedWorstIoU,
+            double initialMeshMeanIoU, double fittedMeshMeanIoU, double initialMeshWorstIoU, double fittedMeshWorstIoU,
             int evaluations, int adjustedRegions, string parameterSummary)
         {
             Anatomy = anatomy;
+            FittedMesh = fittedMesh;
             ReferenceViews = referenceViews;
             InitialMeanIoU = initialMeanIoU;
             FittedMeanIoU = fittedMeanIoU;
             InitialWorstIoU = initialWorstIoU;
             FittedWorstIoU = fittedWorstIoU;
+            InitialMeshMeanIoU = initialMeshMeanIoU;
+            FittedMeshMeanIoU = fittedMeshMeanIoU;
+            InitialMeshWorstIoU = initialMeshWorstIoU;
+            FittedMeshWorstIoU = fittedMeshWorstIoU;
             Evaluations = evaluations;
             AdjustedRegions = adjustedRegions;
             ParameterSummary = parameterSummary;
@@ -101,17 +117,25 @@ namespace PixelCreatures.Core.Export
             if (options.EllipsoidSides < 6 || options.EllipsoidSides > 24 ||
                 options.EllipsoidRings < 4 || options.EllipsoidRings > 12)
                 throw new ArgumentOutOfRangeException(nameof(options.EllipsoidSides));
+            if (options.ExportSides < 6 || options.ExportSides > 128 ||
+                options.ExportRings < 4 || options.ExportRings > 128 ||
+                !DMath.IsFinite(options.UnitsPerPixel) || options.UnitsPerPixel <= 0)
+                throw new ArgumentOutOfRangeException(nameof(options.ExportSides));
 
             CreatureAnatomy source = model.Anatomy;
             PixelDepthCapture[] references = MultiviewReconstructor.Capture(model, options.Directions);
             List<FitRegion> regions = DiscoverRegions(source);
             Metrics initial = Evaluate(source, references, options);
             int evaluations = 1;
+            ObjMeshResult initialObj = ObjMeshExporter.Export(source, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
+            Metrics initialMesh = EvaluateObj(initialObj.ObjText, references, options.UnitsPerPixel);
 
             if (regions.Count == 0 || options.Passes == 0)
             {
-                return new GeometryFitResult(source, references, initial.Mean, initial.Mean,
-                    initial.Worst, initial.Worst, evaluations, 0, "没有可拟合的主体分组");
+                return new GeometryFitResult(source, initialObj, references,
+                    initial.Mean, initial.Mean, initial.Worst, initial.Worst,
+                    initialMesh.Mean, initialMesh.Mean, initialMesh.Worst, initialMesh.Worst,
+                    evaluations, 0, "没有可拟合的主体分组");
             }
 
             Metrics current = initial;
@@ -175,6 +199,8 @@ namespace PixelCreatures.Core.Export
             }
 
             CreatureAnatomy fitted = ApplyRegions(source, regions);
+            ObjMeshResult fittedObj = ObjMeshExporter.Export(fitted, options.ExportSides, options.ExportRings, options.UnitsPerPixel);
+            Metrics fittedMesh = EvaluateObj(fittedObj.ObjText, references, options.UnitsPerPixel);
             int changed = 0;
             var summary = new List<string>();
             foreach (FitRegion region in regions)
@@ -184,8 +210,10 @@ namespace PixelCreatures.Core.Export
                 summary.Add($"{region.Name}: scale {region.Scale:0.###}, offset {region.Offset}");
             }
 
-            return new GeometryFitResult(fitted, references, initial.Mean, current.Mean,
-                initial.Worst, current.Worst, evaluations, changed,
+            return new GeometryFitResult(fitted, fittedObj, references,
+                initial.Mean, current.Mean, initial.Worst, current.Worst,
+                initialMesh.Mean, fittedMesh.Mean, initialMesh.Worst, fittedMesh.Worst,
+                evaluations, changed,
                 summary.Count == 0 ? "参数未发生有效变化" : string.Join("; ", summary));
         }
 
