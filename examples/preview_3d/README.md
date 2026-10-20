@@ -23,6 +23,8 @@ godot --path . res://examples/preview_3d/CreaturePreview3D.tscn
 - Enable/disable equipment.
 - Select Fantasy (the family's original procedural gear), Modern, Sci-Fi, or Wasteland. The three new style packs use the same four independent slot streams.
 - In the original Fantasy schema, `gear.size` is shared by several pieces and therefore changes only when the master equipment seed changes; slot rerolls only change the genes belonging to that slot.
+- **Multi-view depth reconstruction** remains an experimental comparison mode; it is not the default exporter.
+- **几何拟合原型** captures the original 2D silhouettes from eight angles and performs a small, bounded optimization of the source anatomy groups before sending the result through the current OBJ exporter. The status panel reports the proxy silhouette score before/after fitting. This is a test mode, not a validated fix; the score measures the triangulated primitive proxy, not the final SDF mesh.
 - Drag the model area to orbit; use the mouse wheel to zoom; reset the camera if needed.
 - **Export OBJ + MTL** writes the current preview to `user://exports/3d-preview/` and opens that directory.
 
@@ -100,3 +102,8 @@ Please reproduce:
 - arthropod Body `14734810077418951438`, Equipment `9423138326607858554` — leg joints continuous
 
 This is code committed but **not verified in a running Godot scene or .NET test harness**. If tests fail or the opening appears behind the jaw, fix placement rather than treating the new geometry as accepted.
+
+
+## Multi-view geometry-fit experiment (2026-10-20)
+
+See `docs/GEOMETRY_FIT_PROTOTYPE.md`. This branch adds a third preview toggle that optimizes bounded transforms for major source anatomy groups against original 2D silhouettes. The original 3D exporter remains unchanged and is used to build the fitted preview. Proxy IoU is only a diagnostic; inspect the resulting OBJ visually and run the test harness before drawing conclusions.
