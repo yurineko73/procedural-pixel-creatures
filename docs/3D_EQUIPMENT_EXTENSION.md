@@ -200,3 +200,7 @@ Kept the existing 2D anatomy and adjusted only the static 3D export:
 
 These are targeted corrections, not a redesign of the 2D generator. Tests have been added but are not yet executed; no GitHub Actions/check-run results are available for the current commit. Visual approval in Godot is still pending.
 
+
+
+Follow-up: appendage embedding depth now scales with the actual root radius. Horn-eye clearance re-seats the root inside the cranium after each small offset, and the regression test checks both eye clearance and continued root attachment.
+
