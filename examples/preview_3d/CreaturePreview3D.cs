@@ -573,7 +573,7 @@ namespace PixelCreatures.Examples
                 string reconstructionNote = string.Empty;
                 if (experimental)
                 {
-                    // Body-only proof of concept; source is the original 2D renderer, not OBJ shapes.
+                    // Body surface comes from the original 2D renderer's G-buffer; bone-anchored facial features are appended separately.
                     var captures = MultiviewReconstructor.Capture(model, 16);
                     MultiviewResult reconstructed = MultiviewReconstructor.Build(
                         captures, new MultiviewOptions { Directions = 16 });
