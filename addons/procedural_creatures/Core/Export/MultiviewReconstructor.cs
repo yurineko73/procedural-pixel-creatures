@@ -32,7 +32,7 @@ namespace PixelCreatures.Core.Export
         {
             var inv = CultureInfo.InvariantCulture;
             var obj = new StringBuilder("# Pixel-depth multi-view reconstructed experimental mesh\n");
-            obj.AppendLine("mtllib multiview.mtl");
+            obj.AppendLine("mtllib creature.mtl");
             obj.AppendLine("o multiview_surface");
             foreach (Vec3 p in Vertices)
                 obj.Append("v ").Append((p.X * scale).ToString("G9", inv)).Append(' ')
