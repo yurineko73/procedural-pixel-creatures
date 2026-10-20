@@ -331,3 +331,18 @@ The experiment now scores candidate adjustments using the actual OBJ silhouette,
 - Regression: `export.geometry_fit_prototype_is_bounded` now checks the actual OBJ score does not regress, the evaluation budget is respected, and the returned OBJ exactly matches the returned fitted anatomy.
 - Validation: source changes committed; .NET build, CoreHarness, and Godot visual run are still pending. Do not treat improved silhouette IoU as proof of anatomical or surface quality.
 - Next: run `dotnet build`, the CoreHarness suite, and the preview in Godot 4.7.1 .NET; compare the same fixed seed in original OBJ and geometry-fit modes from front/side/rear/45-degree views.
+
+
+## 2026-10-21: semantic topology experiment (separate branch)
+
+**Branch:** \`experiment/semantic-topology-prototype\`  
+**Base:** \`experiment/geometry-fit-prototype\`  
+**Status:** code and a preview toggle added; automated build/test and visual review pending.
+
+- Added \`Core/Export/SemanticTopologyPrototype.cs\` as a separate final-mesh path. It samples the source primitive surfaces as control points, splits semantic groups into spatially connected components, builds fixed indexed radial surfaces, and relaxes vertices against original-renderer multi-view silhouette/depth constraints.
+- The final body skin from this path does not call the old SDF skin builder or the multi-view voxel-volume mesher. The old SDF exporter is invoked only to measure a baseline silhouette score; its body mesh is not included in the new output.
+- Added a new mutually exclusive preview toggle: **语义拓扑网格（实验 / 不含装备）**. Recommended first comparison: biped, Body Seed \`12345\`, equipment off; inspect front/side/rear and intermediate angles.
+- The preview reports baseline SDF skin IoU, new topology IoU before relaxation, and after relaxation. IoU is a silhouette metric only and must not be treated as proof of anatomical quality.
+- Added the CoreHarness test \`export.semantic_topology_prototype_is_sdf_free\` and \`docs/SEMANTIC_TOPOLOGY_PROTOTYPE.md\`.
+- Known limitations: radial surfaces may fill concavities or round the muzzle/jaw; separate parts may overlap or show seams; true shared anatomical boundary loops, full pixel-pattern UV baking, Skeleton3D skinning, and animation are not implemented.
+- **Do not merge or make this the default based on the code change alone.** Run the source audit, CoreHarness and full Godot checks, then visually compare the same seed. If the head/mouth and attachment quality do not improve, replace the radial head patch with an authored topology template or stop this route rather than returning to SDF tuning.
