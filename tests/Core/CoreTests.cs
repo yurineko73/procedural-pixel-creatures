@@ -114,8 +114,11 @@ namespace PixelCreatures.Tests
             ctx.True(!first.Contains("NaN", StringComparison.Ordinal) &&
                 !first.Contains("Infinity", StringComparison.Ordinal),
                 "Reconstruction contains invalid coordinates");
-            ctx.True(first.Contains("usemtl px_", StringComparison.Ordinal),
-                "Reconstructed surfaces must use observed original pixel palette colors");
+            ctx.True(first.Contains("usemtl Primary", StringComparison.Ordinal) ||
+                first.Contains("usemtl Secondary", StringComparison.Ordinal),
+                "Reconstructed surfaces must preserve semantic anatomy material slots");
+            ctx.True(!first.Contains("usemtl px_", StringComparison.Ordinal),
+                "Per-triangle pixel colors should not create a noisy mosaic of flat materials");
         }
 
         private static void ObjExportSmoke(TestContext ctx, CreatureRegistry reg)
