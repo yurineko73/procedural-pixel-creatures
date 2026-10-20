@@ -340,6 +340,7 @@ The experiment now scores candidate adjustments using the actual OBJ silhouette,
 **Status:** code and a preview toggle added; automated build/test and visual review pending.
 
 - Added `Core/Export/SemanticTopologyPrototype.cs` as a separate final-mesh path. It samples the source primitive surfaces as control points, splits semantic groups into spatially connected components, builds fixed indexed radial surfaces, and relaxes vertices against original-renderer multi-view silhouette/depth constraints.
+- Split the implementation into focused modules: `SemanticTopologyPrototype.cs` (orchestration), `SemanticTopologySurfaceBuilder.cs` (indexed surface creation), `SemanticTopologyViewFitter.cs` (multi-view constraints and IoU diagnostics), and `SemanticTopologyObjExporter.cs` (OBJ/detail export and per-face pixel palette sampling).
 - The final body skin is not sourced from the old SDF skin builder or the multi-view voxel-volume mesher. The old SDF exporter is invoked only to measure a baseline silhouette score; its body mesh is not included in the new output.
 - Added a new mutually exclusive preview toggle: **语义拓扑网格（实验 / 不含装备）**. Recommended first comparison: biped, Body Seed `12345`, equipment off; inspect front/side/rear and intermediate angles.
 - The preview reports baseline SDF skin IoU, new topology IoU before relaxation, and after relaxation. IoU is a silhouette metric only and must not be treated as proof of anatomical quality.
