@@ -11,7 +11,9 @@ namespace PixelCreatures.Core.Export
 {
     public static class ImplicitBodyMesher
     {
-        private const double Smoothness = 0.9;
+        // A little more blending is needed in 3D than in the 2D depth renderer: separate limb
+        // shells must actually meet at joints instead of leaving visible seams in the static mesh.
+        private const double Smoothness = 1.15;
         private const double ClothingSmoothness = 0.4;
         private const double TargetStep = 1.25;
         private const double ClothingTargetStep = 0.8;
@@ -69,24 +71,42 @@ namespace PixelCreatures.Core.Export
         public static bool ShouldUnify(CreatureAnatomy anatomy, PrimitiveDef primitive)
         {
             if (primitive.Kind != PrimKind.Ellipsoid && primitive.Kind != PrimKind.RoundCone) return false;
-            if (primitive.Material != MaterialSlot.Primary && primitive.Material != MaterialSlot.Secondary) return false;
-            if ((primitive.Flags & (PrimFlags.Hard | PrimFlags.Faceted | PrimFlags.Thin | PrimFlags.Translucent | PrimFlags.FrontOnly)) != 0) return false;
+            if (primitive.Material != MaterialSlot.Primary && primitive.Material != MaterialSlot.Secondary &&
+                primitive.Material != MaterialSlot.Accent && primitive.Material != MaterialSlot.White) return false;
+            // Faceted is a 2D shading instruction, not a reason to leave overlapping closed shells
+            // in the 3D preview. Hard/thin/translucent pieces (claws, plates, membranes) stay separate.
+            if ((primitive.Flags & (PrimFlags.Hard | PrimFlags.Thin | PrimFlags.Translucent | PrimFlags.FrontOnly)) != 0) return false;
             if (primitive.Group < 0 || primitive.Group >= anatomy.Groups.Count) return false;
 
             PartGroup group = anatomy.Groups[primitive.Group];
             if ((group.Flags & GroupFlags.Interior) != 0) return false;
             string name = group.Name ?? string.Empty;
-            if (name.StartsWith("gear", StringComparison.OrdinalIgnoreCase) ||
-                name.StartsWith("weapon", StringComparison.OrdinalIgnoreCase) ||
-                name.StartsWith("equipment", StringComparison.OrdinalIgnoreCase) ||
-                name.IndexOf("shield", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("pauldron", StringComparison.OrdinalIgnoreCase) >= 0)
-                return false;
-            return true;
+            if (IsEquipmentGroup(name)) return false;
+            if (primitive.Material == MaterialSlot.Primary || primitive.Material == MaterialSlot.Secondary) return true;
+            return !IsStandaloneDetailGroup(name);
+        }
+
+        private static bool IsEquipmentGroup(string name) =>
+            name.StartsWith("gear", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("weapon", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("equipment", StringComparison.OrdinalIgnoreCase) ||
+            name.IndexOf("shield", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("pauldron", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private static bool IsStandaloneDetailGroup(string name)
+        {
+            // Accent/white soft anatomy (muzzles, beaks, cheeks, paws and hooves) belongs to the
+            // fused skin. Truly separate appendages and facial hardware must retain their own mesh.
+            string[] tokens = { "horn", "ear.", ".ear", "antenna", "whisker", "claw", "teeth", "fang",
+                "tusk", "mandible", "pincer", "stinger", "spike", "thorn", "wing", "fin", "membrane",
+                "shell", "crown", "crest", "leaf", "tentacle", "eyestalk" };
+            foreach (string token in tokens)
+                if (name.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            return false;
         }
 
         public static MeshData Build(CreatureAnatomy anatomy) =>
-            BuildSelected(anatomy, p => ShouldUnify(anatomy, p), Smoothness, TargetStep, -1);
+            BuildSelected(anatomy, p => ShouldUnify(anatomy, p), Smoothness, TargetStep, -1, true);
 
         /// <summary>
         /// Fuses the layered ellipsoids that make up soft garments into one fitted surface per
@@ -104,7 +124,7 @@ namespace PixelCreatures.Core.Export
                 if (!IsGarmentGroup(name)) continue;
                 var mesh = BuildSelected(anatomy,
                     p => p.Group == capturedGroup && ShouldUnifyClothing(anatomy, p),
-                    ClothingSmoothness, ClothingTargetStep, capturedGroup);
+                    ClothingSmoothness, ClothingTargetStep, capturedGroup, false);
                 if (mesh.Faces.Count > 0) result.Add(mesh);
             }
             return result;
@@ -131,7 +151,7 @@ namespace PixelCreatures.Core.Export
         }
 
         private static MeshData BuildSelected(CreatureAnatomy anatomy, Func<PrimitiveDef, bool> include,
-            double smoothness, double targetStep, int groupIndex)
+            double smoothness, double targetStep, int groupIndex, bool cleanTinyIslands)
         {
             if (anatomy == null) throw new ArgumentNullException(nameof(anatomy));
             var mesh = new MeshData { GroupIndex = groupIndex };
@@ -232,9 +252,9 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
-            // Remove only tiny, disconnected SDF debris. Real separate limbs/ears and all
-            // hard accessories remain untouched by this conservative pass.
-            PreviewMeshCleaner.RemoveTinyIslands(mesh);
+            // Only the fused body gets micro-island cleanup. Garment groups may intentionally
+            // contain several separate skirt/flap panels and must not lose those pieces.
+            if (cleanTinyIslands) PreviewMeshCleaner.RemoveTinyIslands(mesh);
             if (mesh.Faces.Count == 0)
             {
                 mesh.PrimitiveIndices.Clear();
@@ -402,7 +422,7 @@ namespace PixelCreatures.Core.Export
             Vec3 outward = FieldGradient(center, shapes, smoothness);
             if (outward.LengthSquared < 1e-10) outward = approximateOutward;
             if (Vec3.Dot(cross, outward) < 0) { int swap = b; b = c; c = swap; }
-            MaterialSlot material = MaterialAt(center, shapes);
+            MaterialSlot material = MaterialAt(center, shapes, smoothness);
             mesh.Faces.Add(new Face(a, b, c, material));
         }
 
@@ -418,14 +438,18 @@ namespace PixelCreatures.Core.Export
                 Field(point + dz, shapes, smoothness) - Field(point - dz, shapes, smoothness));
         }
 
-        private static MaterialSlot MaterialAt(Vec3 point, List<Shape> shapes)
+        private static MaterialSlot MaterialAt(Vec3 point, List<Shape> shapes, double smoothness)
         {
             double best = double.PositiveInfinity;
             MaterialSlot material = MaterialSlot.Primary;
             foreach (Shape shape in shapes)
             {
-                double d = Math.Abs(Distance(point, shape));
-                if (d < best) { best = d; material = shape.Material; }
+                double signedDistance = Distance(point, shape);
+                // Do not let a deeply buried ellipsoid paint the visible outer surface merely
+                // because its internal surface happens to be close in absolute distance.
+                double buried = Math.Max(0.0, -signedDistance - smoothness * 0.25);
+                double score = Math.Abs(signedDistance) + buried * 4.0;
+                if (score < best) { best = score; material = shape.Material; }
             }
             return material;
         }
