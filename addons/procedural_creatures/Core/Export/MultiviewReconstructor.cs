@@ -1,6 +1,6 @@
 // Experimental 2D-guided static surface reconstruction.
 // Unlike ImplicitBodyMesher, the field comes from the actual 2D renderer's multi-view silhouettes
-// and front-depth buffers. It never invokes OBJ primitive fitting or guessed mouth/toe offsets.
+// and front-depth buffers. The body is reconstructed from these constraints; bone-anchored facial features are appended separately.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
