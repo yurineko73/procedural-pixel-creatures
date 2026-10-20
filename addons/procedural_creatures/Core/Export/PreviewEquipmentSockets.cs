@@ -34,9 +34,14 @@ namespace PixelCreatures.Core.Export
                 Xform hand = anatomy.Skeleton.RestWorld(rightHand);
                 double handR = HandRadius(anatomy, rightHand);
                 Vec3 grip = hand.Point(new Vec3(-handR * 0.6, 0, 0));
-                // Legacy weapons extend along local +Y of a freely rotated hand bone. In a
-                // static model, reorient the shaft toward world-up while retaining its grip.
-                Quat rotation = Quat.FromTo(hand.Dir(new Vec3(0.12, 1, 0)), Vec3.UnitY);
+                // The original BuildWeapon builds every shaft along *hand-local*
+                // (0.12,+1,0), regardless of the hand bone's world orientation. Preserve that
+                // semantic axis and target a readable rest-pose direction per weapon class.
+                // This is a socket rotation about the exact original grip, not a separate
+                // post-export translation of the weapon onto the wrist.
+                Vec3 originalShaft = hand.Dir(new Vec3(0.12, 1, 0)).NormalizedOr(Vec3.UnitY);
+                Vec3 restingShaft = WeaponRestAxis(anatomy, rightHand);
+                Quat rotation = Quat.FromTo(originalShaft, restingShaft);
                 double lowest = grip.Y;
                 bool any = false;
                 foreach (PrimitiveDef p in anatomy.Primitives)
@@ -111,6 +116,45 @@ namespace PixelCreatures.Core.Export
             if (_hasWeapon && IsWeapon(anatomy, p)) return _weapon.Scale;
             if (_hasShield && IsShield(anatomy, p)) return _shield.Scale;
             return 1.0;
+        }
+
+        private static Vec3 WeaponRestAxis(CreatureAnatomy anatomy, int handBone)
+        {
+            string kind = string.Empty;
+            foreach (PrimitiveDef p in anatomy.Primitives)
+            {
+                if (!IsWeapon(anatomy, p) || p.BoneA != handBone) continue;
+                string tag = p.Tag ?? string.Empty;
+                string group = anatomy.Groups[p.Group].Name ?? string.Empty;
+                if (tag.StartsWith("weapon.", StringComparison.OrdinalIgnoreCase) &&
+                    tag != "weapon.orb")
+                {
+                    kind = tag.Substring("weapon.".Length).ToLowerInvariant();
+                    break;
+                }
+                if (group.Contains("blaster", StringComparison.OrdinalIgnoreCase))
+                    kind = "blaster";
+                else if (group.Contains("tool", StringComparison.OrdinalIgnoreCase))
+                    kind = "tool";
+            }
+            // These axes are in creature/world space: X = creature-forward, Y = up,
+            // Z = lateral. Upward shafts for staffs/spears, forward-facing for firearms,
+            // with a modest outward component to clear the thigh/chest.
+            int side = anatomy.Skeleton.Bones[handBone].Side;
+            double outward = side < 0 ? -0.10 : 0.10;
+            switch (kind)
+            {
+                case "spear": case "staff":
+                    return new Vec3(0.38, 0.92, outward).Normalized();
+                case "dagger":
+                    return new Vec3(0.60, 0.78, outward).Normalized();
+                case "blaster": case "gun":
+                    return new Vec3(0.90, 0.42, outward).Normalized();
+                case "club": case "axe": case "hammer":
+                    return new Vec3(0.48, 0.87, outward).Normalized();
+                default:
+                    return new Vec3(0.45, 0.89, outward).Normalized();
+            }
         }
 
         private static bool IsWeapon(CreatureAnatomy a, PrimitiveDef p)
