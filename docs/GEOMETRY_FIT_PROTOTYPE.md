@@ -46,7 +46,7 @@ The geometry-fit toggle and the multi-view depth-reconstruction toggle are mutua
 For a fixed seed, compare the original OBJ mode and geometry-fit mode:
 
 1. Report deterministic proxy and actual OBJ silhouette metrics.
-2. Confirm the fitted actual-OBJ mean/worst score never regresses against the initial OBJ score.
+2. Confirm the weighted actual-OBJ objective score never regresses; inspect mean and worst-view IoU separately because the weighted objective can trade one against the other.
 3. Inspect front, side, rear, and intermediate angles for detached limbs, floating facial details, obvious gaps, and new self-intersections.
 4. If the silhouette score improves but the surface looks worse, do not widen the parameter bounds. Add geometry-quality checks or revise the fit parameters/objective instead.
 
