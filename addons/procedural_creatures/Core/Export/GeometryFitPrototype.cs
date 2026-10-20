@@ -4,6 +4,7 @@
 // adjusts only bounded group transforms, and scores a lightweight projection of parametric surfaces.
 using System;
 using System.Collections.Generic;
+using PixelCreatures.Core;
 using PixelCreatures.Core.Anatomy;
 using PixelCreatures.Core.Rendering;
 
@@ -57,11 +58,13 @@ namespace PixelCreatures.Core.Export
     /// </summary>
     public static class GeometryFitPrototype
     {
-        private static readonly HashSet<string> FitGroupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly string[] FitGroupOrder =
         {
             "body", "torso", "pelvis", "head", "neck", "arms", "legs", "tail",
             "thorax", "abdomen", "wing", "wings", "fin", "fins"
         };
+        private static readonly HashSet<string> FitGroupNames =
+            new HashSet<string>(FitGroupOrder, StringComparer.OrdinalIgnoreCase);
 
         private sealed class FitRegion
         {
@@ -203,7 +206,7 @@ namespace PixelCreatures.Core.Export
             }
 
             var result = new List<FitRegion>();
-            foreach (string name in FitGroupNames)
+            foreach (string name in FitGroupOrder)
             {
                 if (!anchors.TryGetValue(name, out var value) || value.Count == 0) continue;
                 result.Add(new FitRegion { Name = name, Center = value.Sum / value.Count });
