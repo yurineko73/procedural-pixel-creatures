@@ -161,3 +161,14 @@ The original 2D blocks intentionally create upper teeth from the head's undersid
 Hand claws now have explicit tags, consistent with foot claws, to identify their parent. The new modules operate only on exported primitive clones/coordinates and leave original 2D genome/anatomy layout intact.
 
 Regressions: `export.preview_dental_lip_fit`, `export.preview_claw_toe_fit`, `export.preview_fixed_user_seeds` (Body=12345, Equipment=54321). **All pending executable test / Godot rendering verification**.
+
+
+## 3D face topology and segmented-limb specialization (2026-10-20)
+
+2D-to-3D mismatch: the old `.mouthInterior` is intentionally hidden when the jaw is closed, while the 3D exporter had no active jaws or visible mouth cut. Merely limiting teeth length cannot produce a believable face if no oral opening exists. The static 3D body mesher now derives a shallow subtractive elliptical slit from the actual head snout and jaw bone metadata; the resulting cavity wall is assigned `MaterialSlot.Mouth`. The shape is currently a *static closed-mouth slit*, not a skinned animated open-mouth cavity. Underlying `HeadSpec`, mouth bones and 2D rendering remain untouched.
+
+`PreviewHeadAttachmentFit`: skull-based per-ear-group root embed, applying one rigid adjustment to both `ear.outer` and `ear.inner` primitives. Other head ornaments are not reattached until given explicit semantic bone definitions.
+
+`PreviewSegmentChainFit`: uses the source three-segment `LegRig` hierarchy for arthropod legs instead of globally sampled coarse SDF. Creates tubes at source rest-pose joint coordinates and overlap spheres at chain joints, leaving isolated non-leg appendages unaffected. Only complete tagged chains use this path; incomplete groups fall back.
+
+New regressions: `export.preview_visible_mouth_cavity`, `export.preview_ears_embed_in_skull`, `export.preview_arthropod_leg_chain`. No runtime green build/visual approval yet; use actual reported fixed seeds, and only accept P0 once mouth, teeth, ears and arthropod connections are verified across viewpoints.
