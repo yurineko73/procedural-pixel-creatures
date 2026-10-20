@@ -128,3 +128,15 @@ The preview mesh builder calculates shared source-vertex normals across all mate
 CoreHarness regressions: `export.preview_attached_claws_and_teeth`, `export.preview_weapon_hand_socket`, `export.preview_extreme_garment_fallback`, `export.preview_tiny_sdf_island_cleanup`.
 
 **Current validation:** code committed but no local .NET SDK / Godot runtime available in this execution environment; visual and compiled test results are pending. Do not claim verified wearables or collision-free procedural clothing yet. Equipment variation expansion will follow after this stabilization pass is accepted.
+
+
+## Screenshot-driven repair follow-up (2026-10-20)
+
+The latest screenshots exposed three upstream exporter issues in addition to attachment placement:
+- Soft Accent/White anatomy and Faceted core primitives were emitted as separate shells, exposing internal intersections. The skin union now includes soft core accents and faceted anatomy while continuing to keep hard/thin/translucent/front-only pieces, gear and isolated appendage groups separate.
+- Surface material selection used absolute SDF distance, allowing buried shapes to win material assignment. Deeply buried candidates are now penalized.
+- Tiny-island cleanup previously ran on garment groups as well as skin; garment panels are now preserved.
+
+Attachment repair now searches a source bone and its ancestors and can project against ellipsoids or round-cone limb segments. Long weapon scaling uses actual floor clearance instead of a fixed minimum size. Caps/helmets are raised above the eye line, hoods are shifted backward, and pauldrons are placed relative to the shoulder frame.
+
+Additional CoreHarness tests cover ancestor-segment claw attachment, soft Accent/Faceted skin fusion, helmet eye clearance, and weapon floor clearance. All are **pending execution** because this environment cannot launch the project's .NET/Godot toolchain. The current GitHub branch also does not contain the `PlantfolkFamily` source shown in the screenshots; shared exporter changes are family-agnostic, but plantfolk-specific generator fixes remain blocked on that source being checked in.
