@@ -74,3 +74,10 @@ Reopen this scene after pulling the development branch. Try the same Body Seed/E
 The latest export pass fuses soft Accent/White anatomy and Faceted core body primitives into the organic skin to reduce overlapping shells and visible joints. Material attribution now discounts deeply buried shapes; tiny-island cleanup is limited to the body mesh so separate skirt/flap panels are preserved. Claws, teeth, fangs and hooves can be fitted against ancestor limb segments. Long spears/staves are scaled to the floor clearance available at the hand. Caps/helmets are raised above the eyes, hoods moved behind the face, and pauldrons seated closer to the shoulder.
 
 New regression tests were added, but **the branch is not yet verified by a .NET build or Godot visual run**. Recheck all problematic seeds from at least front/side/rear, including quadruped hooves, reptile mouth/feet, arthropod legs and biped headgear. The screenshot includes `plantfolk`, but no PlantfolkFamily source is currently tracked in this branch; the shared exporter changes apply once that family's anatomy reaches the exporter.
+
+
+## Eye-stalk and facial surface fit (2026-10-20)
+
+In the static preview exporter, independently grouped horns, feelers and tentacles are preserved regardless of body palette colour; floating small claws/teeth without any valid body anchor are omitted; loose eyes are fitted as a single stack to the nearby supporting cranium, with limited travel; exposed eye-stalks may receive a small attached primary-colour supporting bulb. No 2D body/animation data is changed. New regression tests contain several Body Seeds reported in screenshots.
+
+Verification remains pending: this environment cannot run Godot/.NET or clone the repository over GitHub DNS. Test locally after pulling `feature/3d-modular-equipment`; check head/eye/pupil separation, background shadow of eye-stalks, and side/front/top anatomy under the same Body Seed and Equipment Seed.
