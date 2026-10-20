@@ -187,3 +187,16 @@ Required redesign before more feature work:
 - Mesh curved horns/ears as continuous tapered geometry, embed the root into the cranium, and enforce clearance from eye features.
 - Union/embed claws into paw surfaces and verify multi-view contact.
 - Keep 2D rendering untouched; add real Godot visual regression renders for the user's exact seeds. Do not mark these fixes as passed until inspected.
+
+
+## 2026-10-20 — First direct fixes for 3D conversion defects
+
+Kept the existing 2D anatomy and adjusted only the static 3D export:
+- Mouth subtraction now follows the original `.mouthInterior` ellipsoid instead of a guessed point at 70% of the snout plus a downward offset.
+- Upper teeth are shorter and anchored closer to the muzzle axis so they enter the mouth cavity instead of hanging below it.
+- Head attachment fitting now covers horns as well as ears, embeds horn roots more deeply to hide flat caps, and applies a small group translation when a horn approaches an eye.
+- Claw roots are moved further inside their matching paw/foot/palm.
+- Added regression coverage for mouth position, horn roots/eye clearance, and both user screenshot seed pairs.
+
+These are targeted corrections, not a redesign of the 2D generator. Tests have been added but are not yet executed; no GitHub Actions/check-run results are available for the current commit. Visual approval in Godot is still pending.
+
