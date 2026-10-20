@@ -71,7 +71,7 @@ namespace PixelCreatures.Core.Export
                 int materialId = (int)material;
                 if (materialId != previous)
                 {
-                    obj.Append("usemtl ").Append(material.ToString()).AppendLine();
+                    obj.Append("usemtl MV_").Append(material.ToString()).AppendLine();
                     previous = materialId;
                 }
                 obj.Append("f ").Append(f.A + 1).Append(' ').Append(f.B + 1)
@@ -92,7 +92,7 @@ namespace PixelCreatures.Core.Export
             {
                 if (slot == MaterialSlot.Count) continue;
                 Rgba c = palette.Color(slot, Shade.Base);
-                sb.Append("newmtl ").Append(slot.ToString()).AppendLine();
+                sb.Append("newmtl MV_").Append(slot.ToString()).AppendLine();
                 sb.Append("Kd ").Append((c.R / 255.0).ToString("F6", CultureInfo.InvariantCulture)).Append(' ')
                     .Append((c.G / 255.0).ToString("F6", CultureInfo.InvariantCulture)).Append(' ')
                     .Append((c.B / 255.0).ToString("F6", CultureInfo.InvariantCulture)).AppendLine();
