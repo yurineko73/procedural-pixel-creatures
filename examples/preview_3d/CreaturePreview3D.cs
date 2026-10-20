@@ -277,7 +277,7 @@ namespace PixelCreatures.Examples
             {
                 Text = "多视角深度重建（实验 / 不含装备）",
                 ButtonPressed = false,
-                TooltipText = "从16个方向读取原版2D深度、法线与轮廓，平滑重建表面并恢复骨骼挂接的眼睛等特征；不是旧版SDF导出。",
+                TooltipText = "从16个方向读取原版2D深度与轮廓构建视觉壳，再用局部深度约束修整表面；不是旧版SDF导出。",
             };
             _multiviewToggle.Toggled += enabled =>
             {
