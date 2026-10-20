@@ -619,11 +619,13 @@ namespace PixelCreatures.Examples
                     GeometryFitResult fit = GeometryFitPrototype.Fit(model, new GeometryFitOptions
                     {
                         Directions = 8,
-                        Passes = 2,
+                        Passes = 1,
                         ScaleStep = 0.04,
                         OffsetStep = 0.25,
                         MaxScaleDelta = 0.08,
                         MaxOffset = 0.5,
+                        MaxMeshEvaluations = 32,
+                        MaxRegions = 6,
                     });
                     anatomy = fit.Anatomy;
                     SetReference(fit.ReferenceViews[0], model);
@@ -638,7 +640,7 @@ namespace PixelCreatures.Examples
                         $"\n代理最差视角：{fit.InitialWorstIoU:P1} → {fit.FittedWorstIoU:P1}" +
                         $"\n最终OBJ轮廓IoU：平均 {fit.InitialMeshMeanIoU:P1} → {fit.FittedMeshMeanIoU:P1}" +
                         $"\n最终OBJ最差视角：{fit.InitialMeshWorstIoU:P1} → {fit.FittedMeshWorstIoU:P1}" +
-                        $"\n调整分组：{fit.AdjustedRegions}，评估次数：{fit.Evaluations}" +
+                        $"\n调整分组：{fit.AdjustedRegions}，OBJ目标评估：{fit.Evaluations} 次，代理评估：{fit.ProxyEvaluations} 次" +
                         $"\n参数：{fit.ParameterSummary}";
                 }
                 else
