@@ -336,7 +336,56 @@ namespace PixelCreatures.Core.Export
 
         private static Metrics Evaluate(CreatureAnatomy anatomy, PixelDepthCapture[] references, GeometryFitOptions options)
         {
-            List<Triangle3> triangles = BuildTriangles(anatomy, options.EllipsoidSides, options.EllipsoidRings);
+            return EvaluateTriangles(BuildTriangles(anatomy, options.EllipsoidSides, options.EllipsoidRings), references);
+        }
+
+        // Measures the actual OBJ emitted by the existing exporter, so the proxy objective and
+        // the final output can be compared independently. OBJ coordinates are restored to source
+        // pixel units before projection into the original renderer's camera.
+        private static Metrics EvaluateObj(string objText, PixelDepthCapture[] references, double unitsPerPixel)
+        {
+            var vertices = new List<Vec3>();
+            var triangles = new List<Triangle3>();
+            using var reader = new StringReader(objText);
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                if (line.StartsWith("v ", StringComparison.Ordinal))
+                {
+                    string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 4) continue;
+                    vertices.Add(new Vec3(
+                        double.Parse(parts[1], CultureInfo.InvariantCulture) / unitsPerPixel,
+                        double.Parse(parts[2], CultureInfo.InvariantCulture) / unitsPerPixel,
+                        double.Parse(parts[3], CultureInfo.InvariantCulture) / unitsPerPixel));
+                }
+                else if (line.StartsWith("f ", StringComparison.Ordinal))
+                {
+                    string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 4) continue;
+                    int first = ObjVertexIndex(parts[1]);
+                    for (int i = 2; i < parts.Length - 1; i++)
+                    {
+                        int second = ObjVertexIndex(parts[i]);
+                        int third = ObjVertexIndex(parts[i + 1]);
+                        if (first < 0 || second < 0 || third < 0 ||
+                            first >= vertices.Count || second >= vertices.Count || third >= vertices.Count) continue;
+                        AddTriangle(triangles, vertices[first], vertices[second], vertices[third]);
+                    }
+                }
+            }
+            return EvaluateTriangles(triangles, references);
+        }
+
+        private static int ObjVertexIndex(string token)
+        {
+            int slash = token.IndexOf('/');
+            string indexText = slash >= 0 ? token.Substring(0, slash) : token;
+            return int.Parse(indexText, CultureInfo.InvariantCulture) - 1;
+        }
+
+        private static Metrics EvaluateTriangles(List<Triangle3> triangles, PixelDepthCapture[] references)
+        {
             double sum = 0;
             double worst = 1;
             for (int viewIndex = 0; viewIndex < references.Length; viewIndex++)
