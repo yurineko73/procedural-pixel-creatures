@@ -59,7 +59,7 @@ Old path:
 
 New path:
 `CreatureAnatomy -> original CreatureRenderer 16 direction rasterization ->
-post-cleanup G-buffer depth/silhouette/primitive provenance -> multi-view visual hull + truncated front-depth constraints -> marching tetrahedra -> mesh -> OBJ`.
+post-cleanup G-buffer depth/silhouette/primitive provenance -> multi-view visual hull + bilinearly sampled, edge-aware smoothed front-depth constraints -> marching tetrahedra -> lightly smoothed mesh -> OBJ`.
 
 The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExporter.Export`. It uses rendered silhouettes as the conservative volume constraint and only uses front depth in a truncated band more than 0.75 pixels inside the silhouette. Captured normals are retained for diagnostics/material selection, not used to carve the body field. The separate eye/pupil/highlight/nostril meshes reuse `ObjMeshExporter.AppendFeatures` and its existing `PreviewFeatureFit` solely to position those details.
 
@@ -71,8 +71,9 @@ The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExpor
 - Per-image chamfer distance approximates the final 2D silhouette. A 3D
   sample must remain inside the silhouette of **every** observation. The outer
   pixel band is controlled by silhouettes alone; interior front-depth samples
-  refine only nearby surface points and are ignored farther than `DepthTruncation`
-  behind the visible surface.
+  are bilinearly sampled and lightly smoothed without crossing semantic group or
+  large depth boundaries. They refine only nearby surface points and are ignored
+  farther than `DepthTruncation` behind the visible surface.
 - A bounded 3D grid samples the resulting intersection field. Marching
   tetrahedra with shared edge vertices produces an OBJ surface.
 - `MultiviewSilhouetteMetrics` rasterizes the reconstructed triangle silhouettes
@@ -84,7 +85,7 @@ The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExpor
 
 ## Current boundaries / rejection conditions
 
-The screenshot review found severe faceting and missing facial structure. The first screenshot-driven revision regressed badly: source-normal tangent-plane constraints fragmented limbs and produced a low silhouette IoU. They have been removed. The current branch instead builds a conservative silhouette visual hull and applies depth only within a truncation band near each observed front surface; hidden interior samples no longer carve through the body. Voxel spacing is finer and default field smoothing is disabled to retain thin anatomy. This correction is not yet visually verified. This proof of concept does NOT guarantee better visual quality. In particular:
+The screenshot review found severe faceting and missing facial structure. The first screenshot-driven revision regressed badly: source-normal tangent-plane constraints fragmented limbs and produced a low silhouette IoU. They have been removed. The current branch instead builds a conservative silhouette visual hull and applies depth only within a truncation band near each observed front surface; hidden interior samples no longer carve through the body. Voxel spacing is finer, depth sampling is continuous, depth smoothing is edge-aware, and a single low-strength field smoothing pass reduces corrugation. These measures may still soften or disconnect sub-pixel appendages. This correction is not yet visually verified. This proof of concept does NOT guarantee better visual quality. In particular:
 
 1. **2D G-buffer depth is synthetic.** Soft screen-space unions and depth
    bias can make independent views geometrically inconsistent. The current
