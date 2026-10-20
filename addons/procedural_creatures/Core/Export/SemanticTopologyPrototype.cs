@@ -74,6 +74,15 @@ namespace PixelCreatures.Core.Export
             public readonly List<(int A, int B, int C)> Faces = new List<(int, int, int)>();
         }
 
+        private sealed class PrimitiveSample
+        {
+            public int PrimitiveIndex;
+            public int GroupIndex;
+            public List<Vec3> Points = new List<Vec3>();
+            public Vec3 Min;
+            public Vec3 Max;
+        }
+
         private sealed class ViewConstraint
         {
             public PixelDepthCapture Capture = null!;
@@ -90,7 +99,7 @@ namespace PixelCreatures.Core.Export
             CreatureAnatomy anatomy = model.Anatomy;
             PixelDepthCapture[] captures = MultiviewReconstructor.Capture(model, options.Directions);
             ViewConstraint[] views = CreateViews(captures);
-            var samplesByGroup = new SortedDictionary<int, List<Vec3>>();
+            var samplesByGroup = new SortedDictionary<int, List<PrimitiveSample>>();
             var corePrimitiveIndices = new HashSet<int>();
 
             for (int i = 0; i < anatomy.Primitives.Count; i++)
@@ -99,20 +108,56 @@ namespace PixelCreatures.Core.Export
                 if (!IsCoreSkin(anatomy, primitive)) continue;
                 List<Vec3> samples = SamplePrimitive(anatomy, primitive, options.SampleSides, options.SampleRings);
                 if (samples.Count < 12) continue;
-                if (!samplesByGroup.TryGetValue(primitive.Group, out List<Vec3>? regionSamples))
-                    samplesByGroup.Add(primitive.Group, regionSamples = new List<Vec3>());
-                regionSamples.AddRange(samples);
-                corePrimitiveIndices.Add(i);
+                GetBounds(samples, out Vec3 min, out Vec3 max);
+                var sampledPrimitive = new PrimitiveSample
+                {
+                    PrimitiveIndex = i,
+                    GroupIndex = primitive.Group,
+                    Points = samples,
+                    Min = min,
+                    Max = max,
+                };
+                if (!samplesByGroup.TryGetValue(primitive.Group, out List<PrimitiveSample>? regionSamples))
+                    samplesByGroup.Add(primitive.Group, regionSamples = new List<PrimitiveSample>());
+                regionSamples.Add(sampledPrimitive);
             }
 
             var patches = new List<Patch>();
-            foreach (KeyValuePair<int, List<Vec3>> pair in samplesByGroup)
+            foreach (KeyValuePair<int, List<PrimitiveSample>> pair in samplesByGroup)
             {
-                if (pair.Value.Count < 12) continue;
-                Patch patch = BuildRadialPatch(pair.Key,
-                    anatomy.Groups[pair.Key].Name ?? ("group_" + pair.Key.ToString(CultureInfo.InvariantCulture)),
-                    pair.Value, options.LatitudeSegments, options.LongitudeSegments);
-                if (patch.Vertices.Count >= 8 && patch.Faces.Count >= 12) patches.Add(patch);
+                // A legacy semantic group can contain both left and right limbs. Split it into
+                // spatially connected components first so they do not collapse into one radial blob.
+                var pending = new List<PrimitiveSample>(pair.Value);
+                double connectionGap = Math.Max(1.0, anatomy.Groups[pair.Key].BlendRadius * 1.5);
+                int componentIndex = 0;
+                while (pending.Count > 0)
+                {
+                    var component = new List<PrimitiveSample> { pending[0] };
+                    pending.RemoveAt(0);
+                    for (int cursor = 0; cursor < component.Count; cursor++)
+                    {
+                        for (int candidate = pending.Count - 1; candidate >= 0; candidate--)
+                        {
+                            if (BoundsGap(component[cursor], pending[candidate]) > connectionGap) continue;
+                            component.Add(pending[candidate]);
+                            pending.RemoveAt(candidate);
+                        }
+                    }
+
+                    var regionSamples = new List<Vec3>();
+                    foreach (PrimitiveSample primitiveSample in component)
+                    {
+                        regionSamples.AddRange(primitiveSample.Points);
+                        corePrimitiveIndices.Add(primitiveSample.PrimitiveIndex);
+                    }
+                    if (regionSamples.Count < 12) continue;
+                    string regionName = (anatomy.Groups[pair.Key].Name ?? "group") +
+                        "_part_" + componentIndex.ToString(CultureInfo.InvariantCulture);
+                    Patch patch = BuildRadialPatch(pair.Key, regionName, regionSamples,
+                        options.LatitudeSegments, options.LongitudeSegments);
+                    if (patch.Vertices.Count >= 8 && patch.Faces.Count >= 12) patches.Add(patch);
+                    componentIndex++;
+                }
             }
             if (patches.Count == 0)
                 throw new InvalidOperationException("No semantic skin regions could be converted to indexed topology.");
@@ -227,6 +272,25 @@ namespace PixelCreatures.Core.Export
                 }
             }
             return points;
+        }
+
+        private static void GetBounds(List<Vec3> points, out Vec3 min, out Vec3 max)
+        {
+            min = points[0];
+            max = points[0];
+            foreach (Vec3 point in points)
+            {
+                min = new Vec3(Math.Min(min.X, point.X), Math.Min(min.Y, point.Y), Math.Min(min.Z, point.Z));
+                max = new Vec3(Math.Max(max.X, point.X), Math.Max(max.Y, point.Y), Math.Max(max.Z, point.Z));
+            }
+        }
+
+        private static double BoundsGap(PrimitiveSample a, PrimitiveSample b)
+        {
+            double dx = Math.Max(0, Math.Max(a.Min.X - b.Max.X, b.Min.X - a.Max.X));
+            double dy = Math.Max(0, Math.Max(a.Min.Y - b.Max.Y, b.Min.Y - a.Max.Y));
+            double dz = Math.Max(0, Math.Max(a.Min.Z - b.Max.Z, b.Min.Z - a.Max.Z));
+            return Math.Sqrt(dx * dx + dy * dy + dz * dz);
         }
 
         private static Patch BuildRadialPatch(int groupIndex, string name, List<Vec3> samples, int latSegments, int lonSegments)
