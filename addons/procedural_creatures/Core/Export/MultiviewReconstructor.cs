@@ -522,11 +522,15 @@ namespace PixelCreatures.Core.Export
             }
             if (InRamp(baseSlot)) return baseSlot;
             // Keep pattern and face-feature materials when their pixel color differs from the base ramp.
+            // Palette ramps intentionally share colors. For a body primitive, a non-base
+            // pixel is much more likely to be a marking/secondary accent than an eye or tooth.
+            // Prefer those pattern slots first; facial primitives already matched their own ramp
+            // in the InRamp(baseSlot) check above.
             MaterialSlot[] special =
             {
-                MaterialSlot.Eye, MaterialSlot.Teeth, MaterialSlot.Mouth, MaterialSlot.Glow,
-                MaterialSlot.White, MaterialSlot.Marking, MaterialSlot.Hair, MaterialSlot.Cloth,
-                MaterialSlot.Metal, MaterialSlot.Accent, MaterialSlot.Membrane, MaterialSlot.Secondary
+                MaterialSlot.Marking, MaterialSlot.Secondary, MaterialSlot.Accent,
+                MaterialSlot.Cloth, MaterialSlot.Metal, MaterialSlot.Hair, MaterialSlot.Membrane,
+                MaterialSlot.White, MaterialSlot.Teeth, MaterialSlot.Mouth, MaterialSlot.Eye, MaterialSlot.Glow
             };
             foreach (MaterialSlot slot in special)
                 if (InRamp(slot)) return slot;
