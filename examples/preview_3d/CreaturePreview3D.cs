@@ -39,6 +39,7 @@ namespace PixelCreatures.Examples
         private Label _gearSeedSummary = null!;
         private CheckBox _equipmentToggle = null!;
         private CheckBox _multiviewToggle = null!;
+        private CheckBox _geometryFitToggle = null!;
         private TextureRect _reference2D = null!;
         private EquipmentSeedSet _equipmentSeeds = EquipmentSeedSet.FromMaster(54321UL);
         private ulong _masterGearSeed = 54321UL;
@@ -278,15 +279,39 @@ namespace PixelCreatures.Examples
                 ButtonPressed = false,
                 TooltipText = "从16个方向读取原版2D深度、法线与轮廓，平滑重建表面并恢复骨骼挂接的眼睛等特征；不是旧版SDF导出。",
             };
-            _multiviewToggle.Toggled += _ => GeneratePreview();
+            _multiviewToggle.Toggled += enabled =>
+            {
+                if (enabled) _geometryFitToggle.SetPressedNoSignal(false);
+                GeneratePreview();
+            };
             column.AddChild(_multiviewToggle);
             var multiviewHint = new Label
             {
-                Text = "关闭：原来的3D导出。开启：多视角轮廓视觉壳 + 局部深度约束 + 原版眼部特征；暂不含装备或动画。首次重建可能短暂卡顿。",
+                Text = "从原版2D多视角深度与轮廓重建体积；保留为对照实验，不作为默认导出方案。",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             multiviewHint.AddThemeFontSizeOverride("font_size", 11);
             column.AddChild(multiviewHint);
+
+            _geometryFitToggle = new CheckBox
+            {
+                Text = "几何拟合原型（实验 / 不含装备）",
+                ButtonPressed = false,
+                TooltipText = "固定原始2D渲染轮廓，自动对身体、头部、四肢、尾巴等原始几何分组做小幅有界调整；不从深度图反推网格。",
+            };
+            _geometryFitToggle.Toggled += enabled =>
+            {
+                if (enabled) _multiviewToggle.SetPressedNoSignal(false);
+                GeneratePreview();
+            };
+            column.AddChild(_geometryFitToggle);
+            var geometryFitHint = new Label
+            {
+                Text = "开启后比较多个方向的原版2D轮廓与参数化3D几何投影，自动微调少量部件组。首次拟合可能短暂卡顿；指标是拟合代理轮廓，仍需检查最终网格。",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            };
+            geometryFitHint.AddThemeFontSizeOverride("font_size", 11);
+            column.AddChild(geometryFitHint);
             _reference2D = new TextureRect
             {
                 Visible = false,
@@ -547,7 +572,8 @@ namespace PixelCreatures.Examples
                 string style = SelectedStyleId;
                 ulong seed = StableHash.SeedFromText(_seedInput.Text);
                 bool experimental = _multiviewToggle.ButtonPressed;
-                bool showEquipment = _equipmentToggle.ButtonPressed && !experimental;
+                bool geometryFit = _geometryFitToggle.ButtonPressed;
+                bool showEquipment = _equipmentToggle.ButtonPressed && !experimental && !geometryFit;
                 bool isBiped = string.Equals(familyId, "biped", StringComparison.OrdinalIgnoreCase);
 
                 CreatureGenome genome = CreatureRuntime.Sample(familyId, seed);
@@ -588,6 +614,32 @@ namespace PixelCreatures.Examples
                     mean /= iou.Length;
                     reconstructionNote = $"\n方法：16方向轮廓视觉壳 + 连续深度采样/边缘保留平滑\n主体轮廓IoU：平均 {mean:P1} / 最低 {worst:P1}\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
                 }
+                else if (geometryFit)
+                {
+                    GeometryFitResult fit = GeometryFitPrototype.Fit(model, new GeometryFitOptions
+                    {
+                        Directions = 8,
+                        Passes = 2,
+                        ScaleStep = 0.04,
+                        OffsetStep = 0.25,
+                        MaxScaleDelta = 0.08,
+                        MaxOffset = 0.5,
+                    });
+                    anatomy = fit.Anatomy;
+                    SetReference(fit.ReferenceViews[0], model);
+                    ObjMeshResult result = ObjMeshExporter.Export(
+                        anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
+                    objText = result.ObjText;
+                    mtlText = result.MtlText;
+                    vertexCount = result.Vertices;
+                    triangleCount = result.Triangles;
+                    reconstructionNote =
+                        $"\\n方法：原始几何分组 + 8视角有界坐标优化" +
+                        $"\\n拟合代理IoU：平均 {fit.InitialMeanIoU:P1} → {fit.FittedMeanIoU:P1}" +
+                        $"\\n最差视角：{fit.InitialWorstIoU:P1} → {fit.FittedWorstIoU:P1}" +
+                        $"\\n调整分组：{fit.AdjustedRegions}，评估次数：{fit.Evaluations}" +
+                        $"\\n参数：{fit.ParameterSummary}";
+                }
                 else
                 {
                     _reference2D.Visible = false;
@@ -602,7 +654,7 @@ namespace PixelCreatures.Examples
 
                 _lastObj = objText;
                 _lastMtl = mtlText;
-                _lastExportSummary = $"{familyId} / {(experimental ? "multiview" : style)} / seed {seed}";
+                _lastExportSummary = $"{familyId} / {(experimental ? "multiview" : geometryFit ? "geometry-fit" : style)} / seed {seed}";
                 _seedResolved.Text = $"解析后的 Seed：{seed}";
                 _status.Text =
                     $"家族：{familyId}\n风格：{Styles[Math.Clamp(_styleSelector.Selected, 0, Styles.Length - 1)].Label}\n" +
