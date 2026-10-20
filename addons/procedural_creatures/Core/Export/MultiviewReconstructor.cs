@@ -14,14 +14,18 @@ namespace PixelCreatures.Core.Export
     public sealed class MultiviewOptions
     {
         public int Directions = 16;
-        public double GridStep = 1.2;
+        // The 2D source is pixel-based, so sub-pixel voxel spacing is needed to keep narrow
+        // legs, toes and tails from disappearing. The point budget raises this only when needed.
+        public double GridStep = 0.6;
         public int MaxGridPoints = 320000;
-        public double SilhouetteSlack = 0.4;
-        public double DepthSlack = 0.45;
-        /// <summary>Number of gentle scalar-field smoothing passes before mesh extraction.</summary>
-        public int FieldSmoothingPasses = 1;
+        public double SilhouetteSlack = 0.2;
+        public double DepthSlack = 0.3;
+        /// <summary>Ignore a front-depth sample once a voxel lies this far behind it (occluded interior).</summary>
+        public double DepthTruncation = 3.0;
+        /// <summary>Optional scalar-field smoothing passes. Disabled by default to retain thin anatomy.</summary>
+        public int FieldSmoothingPasses = 0;
         /// <summary>Blend of a 1-2-1 neighborhood filter into the field (0..1).</summary>
-        public double FieldSmoothingStrength = 0.65;
+        public double FieldSmoothingStrength = 0.2;
     }
 
     public sealed class MultiviewResult
@@ -157,7 +161,8 @@ namespace PixelCreatures.Core.Export
             options ??= new MultiviewOptions();
             if (captures == null || captures.Length < 4) throw new ArgumentException("At least four views are required.", nameof(captures));
             if (options.GridStep <= 0 || options.MaxGridPoints < 1000 ||
-                options.SilhouetteSlack < 0 || options.DepthSlack < 0 || options.FieldSmoothingPasses < 0 || options.FieldSmoothingStrength < 0 || options.FieldSmoothingStrength > 1)
+                options.SilhouetteSlack < 0 || options.DepthSlack < 0 || options.DepthTruncation <= 0 ||
+                options.FieldSmoothingPasses < 0 || options.FieldSmoothingStrength < 0 || options.FieldSmoothingStrength > 1)
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid reconstruction resolution or tolerance.");
             var views = new ViewData[captures.Length];
             Vec3 lower = new Vec3(Far, Far, Far), upper = new Vec3(-Far, -Far, -Far);
@@ -310,7 +315,13 @@ namespace PixelCreatures.Core.Export
             }
         }
 
-        /// <summary>Intersection of multi-view visible silhouettes and constraints from observed front depth.</summary>
+        /// <summary>
+        /// Conservative visual-hull field with truncated one-sided depth carving.
+        /// A front depth is evidence for the visible surface only; treating every hidden
+        /// interior voxel as a new depth constraint causes inconsistent views to carve holes
+        /// through the body. Silhouettes define the solid interior, and depth only refines the
+        /// nearby front surface. Positive values are outside, negative values are inside.
+        /// </summary>
         private static double Evaluate(Vec3 point, ViewData[] views, MultiviewOptions options)
         {
             double field = -Far;
@@ -322,28 +333,17 @@ namespace PixelCreatures.Core.Export
                 int y = (int)Math.Floor(cap.OriginY - v.Y);
                 if (x < 0 || y < 0 || x >= cap.Width || y >= cap.Height)
                     return 5.0; // outside a recorded viewport cannot be reconstructed reliably
+
                 int i = y * cap.Width + x;
                 double bound = view.Distance[i] - options.SilhouetteSlack;
                 if (cap.Visible[i])
                 {
-                    // Use the source rasterizer's measured surface normal as a local tangent plane.
-                    // A pure Z-depth constraint over-expands steep surfaces and creates chunky facets
-                    // around shoulders, head pieces and feet.
-                    double nx = cap.NormalX[i], ny = cap.NormalY[i], nz = cap.NormalZ[i];
-                    double nl = Math.Sqrt(nx * nx + ny * ny + nz * nz);
-                    if (nl > 1e-8)
-                    {
-                        nx /= nl; ny /= nl; nz /= nl;
-                        if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
-                        double sx = x + 0.5 - cap.OriginX;
-                        double sy = cap.OriginY - (y + 0.5);
-                        double planeDistance = nx * (v.X - sx) + ny * (v.Y - sy) + nz * (v.Z - cap.Depth[i]);
-                        bound = Math.Max(bound, planeDistance - options.DepthSlack);
-                    }
-                    else
-                    {
-                        bound = Math.Max(bound, v.Z - cap.Depth[i] - options.DepthSlack);
-                    }
+                    // +Z points toward the camera: a voxel in front of the measured surface is
+                    // outside; a voxel behind it may simply be occluded, so ignore it past the
+                    // truncation band instead of carving away the object's hidden interior.
+                    double depthDelta = v.Z - cap.Depth[i];
+                    if (depthDelta > -options.DepthTruncation)
+                        bound = Math.Max(bound, depthDelta - options.DepthSlack);
                 }
                 field = Math.Max(field, bound);
                 if (field > 2.0) return field;
