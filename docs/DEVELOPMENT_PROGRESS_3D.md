@@ -1,8 +1,8 @@
 # 3D / equipment extension progress
 
-**Updated:** 2026-10-19 (gear isolation + face-detail pass)  
+**Updated:** 2026-10-20 (geometry-fit experiment; validation pending)  
 **Repository:** https://github.com/yurineko73/procedural-pixel-creatures  
-**Branch:** `feature/3d-modular-equipment`  
+**Branch:** `experiment/geometry-fit-prototype`  
 **Google Drive folder:** https://drive.google.com/drive/folders/1mATA3Xa9aJXC5EdDJ2_sOOrug1BSVuLO  
 **Plan:** https://docs.google.com/document/d/1qAsRSdQkgOEmtjrjcnfJy1kydkVrl8q765LII8C-rPc/edit  
 **Progress mirror:** https://docs.google.com/document/d/1uSl8Mu3wpOSDv6lnofj3idFyS4scTn2cOiuah0gC_gE/edit
@@ -300,3 +300,14 @@ Do not mark the 3D visual work complete yet.
 
 Horn/ear root embedding now scales with the actual appendage root radius rather than forcing every root to a fixed percentage of the skull. Horn eye-clearance offsets are followed by a root re-seat, repeated for up to three small corrections, so avoiding an eye does not simply pull the horn free of the cranium. The horn regression also checks that the root remains inside the skull after eye avoidance.
 
+
+
+## 2026-10-20 — Geometry-fit objective correction
+
+**Branch:** `experiment/geometry-fit-prototype`. The experiment now scores candidate adjustments using the actual OBJ silhouette, not just the lightweight primitive-projection proxy. The proxy only selects a preferred search direction; a candidate is retained only when the actual OBJ's weighted mean/worst-view IoU improves. The fitter also prioritizes up to six semantic groups and caps OBJ evaluations to keep the preview bounded.
+
+- Core entry: `Core/Export/GeometryFitPrototype.cs`.
+- Preview: `examples/preview_3d/CreaturePreview3D.tscn` / `CreaturePreview3D.cs`.
+- Regression: `export.geometry_fit_prototype_is_bounded` now checks the actual OBJ score does not regress, the evaluation budget is respected, and the returned OBJ exactly matches the returned fitted anatomy.
+- Validation: source changes committed; .NET build, CoreHarness, and Godot visual run are still pending. Do not treat improved silhouette IoU as proof of anatomical or surface quality.
+- Next: run `dotnet build`, the CoreHarness suite, and the preview in Godot 4.7.1 .NET; compare the same fixed seed in original OBJ and geometry-fit modes from front/side/rear/45-degree views.
