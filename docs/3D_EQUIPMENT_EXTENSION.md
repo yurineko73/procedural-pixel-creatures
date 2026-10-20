@@ -140,3 +140,10 @@ The latest screenshots exposed three upstream exporter issues in addition to att
 Attachment repair now searches a source bone and its ancestors and can project against ellipsoids or round-cone limb segments. Long weapon scaling uses actual floor clearance instead of a fixed minimum size. Caps/helmets are raised above the eye line, hoods are shifted backward, and pauldrons are placed relative to the shoulder frame.
 
 Additional CoreHarness tests cover ancestor-segment claw attachment, soft Accent/Faceted skin fusion, helmet eye clearance, and weapon floor clearance. All are **pending execution** because this environment cannot launch the project's .NET/Godot toolchain. The current GitHub branch also does not contain the `PlantfolkFamily` source shown in the screenshots; shared exporter changes are family-agnostic, but plantfolk-specific generator fixes remain blocked on that source being checked in.
+
+
+## P0 eye and appendage export rules (2026-10-20)
+
+Static 3D export now enforces semantic separation of standalone appendage groups irrespective of material slot, avoiding the earlier Primary/Secondary vs Accent/White union inconsistency. Eye features use `PreviewFeatureFit` to cap stamp-derived 3D mesh sizes to a same-bone host ellipsoid, optionally add a connected backing bulb for a bare eye-stalk on an eligible antenna/tentacle bone, and apply a bounded host-surface correction to **all** eye layers together. Distant features are not teleported to unrelated geometry. Tiny unsupported claws/teeth are dropped at export rather than left floating; source Genome/Anatomy remains unchanged.
+
+Regression additions include multi-family seeds from user screenshots, semantic appendage preservation, eye-stalk support and bounded whole-eye projection. **No .NET / Godot runtime verification has been performed yet.** The branch is ready for local compilation and front/side/rear screenshot comparison; do not mark eye fitting or attachment behavior as visually validated until then.
