@@ -204,3 +204,24 @@ Continuation of P0 screenshot stabilization, on `feature/3d-modular-equipment`:
 - New smoke tests: `export.preview_standalone_appendage_materials`, `export.preview_eyestalk_bulb_fit`, `export.preview_eye_surface_projection`, `export.preview_reported_seed_regressions` (reported biped, quadruped, reptile, arthropod and amorphous body seeds). Existing eye-size and equipment-fit regressions retained.
 
 **Verification:** inspected changed source for balanced delimiters and consistency. A local `git ls-remote` attempt failed DNS resolution of github.com; there is no `dotnet`, `csc`, or `godot` executable in this runtime. Therefore the tests were added **but not actually executed** and the visual defects cannot be declared resolved. Do not enable GitHub Actions to work around this (workflow was previously paused). Next: run full CoreHarness and Godot 4.7.1 locally, inspect exact problematic seed/style combinations in three views; record actual pass/fail, fix any compile or visual regression, then reassess P1 equipment expansion.
+
+
+## 2026-10-20 — Legacy 2D attachment semantics restored for static 3D (code committed; unverified)
+
+User reproduced remaining regressions with two fixed Body/Equipment combinations:
+- `biped`, Body Seed **12345**, Equipment Seed **54321**: teeth protruded away from the snout; nails/claws floated in front of the feet; a shield/weapon needed correct hand frame.
+- `biped`, Body Seed **973718778264341244**, Equipment Seed **3941624577870863579**: headgear and additional held equipment appeared, highlighting the need for consistent hand- and face-local frames.
+
+**Root cause found in original family source, not just shader/SDF:** `Shapes/Heads.AddTeeth` authors upper teeth partly *inside* the 2D lip with -Y tips in head coordinates. `Shapes/Limbs.Build` authors claws at `PawLength * 0.62`, which can be farther forward than the 3D ellipsoid's actual front edge (notably plantigrade feet). `BipedFamily.BuildWeapon` authors shafts on hand-local `new Vec3(0.12, 1, 0)`, but the previous 3D preview replaced this with a single world-up rule. Using the generic nearest-surface helper on teeth/claws introduced additional incorrect repositioning.
+
+Code committed to `feature/3d-modular-equipment`:
+1. New `Core/Export/PreviewDentalFit.cs`: route `.teeth` and `.fangs` through a snout-specific upper-lip fit (matching the original same-head `.snout` cone). Root is inset behind the closed lip, tooth length and width bounded by the tapering snout radius, downward orientation preserved. Unhandled families keep their existing authored geometry.
+2. New `Core/Export/PreviewClawFit.cs`: route tagged `.claw` segments through same-bone `.foot/.paw/.palm` ellipsoid; begin inside its front surface, point toward positive local X and limit tip size. When no appropriate paw exists, fall back to ancestor-segment attachment repair instead of globally deleting jointed toes.
+3. `ObjMeshExporter.cs` dispatches semantic upper teeth and claws **before** generic attachment repair, eliminating duplicate / conflicting snapping.
+4. `Shapes/Limbs.cs` now labels hand claws with `s.Name + ".claw"` just like original foot claws; 2D geometry unchanged.
+5. `PreviewEquipmentSockets.cs` computes weapon orientation from the original hand-local shaft axis and assigns readable rest directions based on weapon type (spear/staff, dagger, axe/hammer/club, blaster/gun), pivoting around the original grip. Existing floor-clearance scaling remains. `PreviewClawFit` guards against bending a low-lying claw tip upward to meet a fixed absolute height.
+6. Tests added: `export.preview_dental_lip_fit`, `export.preview_claw_toe_fit`, `export.preview_fixed_user_seeds`. The fixed-seed test reproduces Body Seed 12345 and Equipment Seed 54321 using `NativeGearRandomizer`, checks mesh validity and deterministic OBJ output.
+
+**Validation status:** code and tests committed and source delimiter / wiring inspected, but **not built or run**. This tool environment lacks `dotnet`, `csc` and `godot` and cannot clone GitHub due to DNS. GitHub Actions remains disabled per prior user instruction; no workflow was reenabled.
+
+**Acceptance criteria for next Godot 4.7.1 run:** for seeds 12345/54321 and 973718778264341244/3941624577870863579, check upper and side lip contact (teeth should not fan outside the upper lip); left/right hand/foot nails should grow from the attached palm/paw and not sit on the pedestal; shaft axis should be consistently held at the hand pivot without dragging through the platform. Run the three named regressions and existing CoreHarness suite. If failures persist, report exact failing Seed, viewpoint and whether equipment enabled; do not mark P0 visually complete or expand gear catalogue until fixed.
