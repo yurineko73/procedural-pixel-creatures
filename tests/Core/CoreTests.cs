@@ -101,6 +101,11 @@ namespace PixelCreatures.Tests
             ctx.True(mesh.Vertices.Count > 0 && mesh.Triangles.Count > 0,
                 "Multi-view intersections must produce a non-empty 3D mesh");
             ctx.True(mesh.SampledGridPoints <= 80000, "Adaptive grid must enforce maximum node budget");
+            double[] overlap = MultiviewSilhouetteMetrics.IntersectionOverUnion(mesh, captures);
+            ctx.True(overlap.Length == captures.Length, "Every source view needs a silhouette comparison");
+            foreach (double value in overlap)
+                ctx.True(value >= 0 && value <= 1 && !double.IsNaN(value),
+                    "Per-direction silhouette IoU must stay within [0, 1]");
             string first = mesh.ToObj(captures, model.Palette);
             string second = mesh.ToObj(captures, model.Palette);
             ctx.True(first == second, "Multi-view OBJ output should be deterministic");
