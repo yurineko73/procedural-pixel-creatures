@@ -113,3 +113,18 @@ To reduce surface holes, the SDF field no longer switches between hard-min and s
 Regression coverage now checks a closed body manifold and verifies garment primitive shells are replaced by one garment surface. These are source-level checks only until the CoreHarness test and Godot 4.7.1 preview are actually run.
 
 The preview mesh builder calculates shared source-vertex normals across all material groups before splitting them into Godot surfaces, reducing artificial shading seams along skin color transitions.
+
+
+## P0 preview stabilization modules (2026-10-20)
+
+`PreviewAttachmentRepair`: surface-repair/omit rules for tiny claws/teeth/fangs, restricted to a valid same-bone host ellipsoid. This avoids general connected-component deletion of intentional floating objects such as particles or separate equipped pieces. Clones are used; original anatomy is never mutated.
+
+`PreviewEquipmentSockets`: export-only grip/forearm placement for weapon and shield object groups. Uses rest-pose hand/forearm transforms and bounded scaling, keeping equipment physically closer to its intended anchor on unusual biped proportions. No additional runtime animation bones or new skeleton schema.
+
+`PreviewMeshCleaner`: union-find micro-island filter on SDF surface meshes only. Removes only very small and disconnected artifacts by face-count and world-space extent; it does not delete discrete raw weapon, claw or face objects. `PreviewGarmentFit`: narrow-waist/long-leg proportion safeguard that replaces unstable hanging skirt panels with a short fitted cloth hem for static preview. Both preserve deterministic Seed behavior.
+
+`EquipmentBuildContext.Cover`: now inherits the referenced chest ellipsoid's `LocalRotation`, so fitted modern/scifi overlays follow body orientation.
+
+CoreHarness regressions: `export.preview_attached_claws_and_teeth`, `export.preview_weapon_hand_socket`, `export.preview_extreme_garment_fallback`, `export.preview_tiny_sdf_island_cleanup`.
+
+**Current validation:** code committed but no local .NET SDK / Godot runtime available in this execution environment; visual and compiled test results are pending. Do not claim verified wearables or collision-free procedural clothing yet. Equipment variation expansion will follow after this stabilization pass is accepted.
