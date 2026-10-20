@@ -46,16 +46,17 @@ namespace PixelCreatures.Core.Export
             bool fang = (anatomy.Groups[source.Group].Name ?? string.Empty).EndsWith(".fangs",
                 StringComparison.OrdinalIgnoreCase);
             double originalLength = (source.LocalB - source.LocalA).Length;
-            double visibleLength = Math.Min(originalLength, radius * (fang ? 0.53 : 0.37));
+            double visibleLength = Math.Min(originalLength, radius * (fang ? 0.42 : 0.24));
             // A minimum of 0.2 keeps tiny teeth legible but never invents huge saber-length tips.
             visibleLength = Math.Max(Math.Min(originalLength, 0.20), visibleLength);
 
-            // Place the root behind the closed lip silhouette, not on the *outer side* of a
-            // nearby spherical skull primitive. Upper fangs descend in local -Y in the 2D head.
+            // Keep the root near the original upper-lip line and bury it in the muzzle. The 2D
+            // renderer hides most of this primitive by layer order; a 3D shell has no such
+            // depth bias, so use a short tooth that descends into the authored mouth cavity.
             Vec3 anchor = new Vec3(
                 DMath.Clamp(source.LocalA.X, Math.Min(snout.LocalA.X, snout.LocalB.X),
                     Math.Max(snout.LocalA.X, snout.LocalB.X)),
-                center.Y - radius * 0.69,
+                center.Y - radius * 0.12,
                 center.Z + z);
             Vec3 oldDir = (source.LocalB - source.LocalA).NormalizedOr(-Vec3.UnitY);
             // Keep a slight forward slant but never let the tip turn upward/outward.
@@ -64,8 +65,8 @@ namespace PixelCreatures.Core.Export
             fitted = source.Clone();
             fitted.LocalA = anchor;
             fitted.LocalB = anchor + direction * visibleLength;
-            fitted.RadiusA = Math.Min(source.RadiusA, radius * 0.22);
-            fitted.RadiusB = Math.Min(source.RadiusB, Math.Max(0.08, radius * 0.09));
+            fitted.RadiusA = Math.Min(source.RadiusA, radius * 0.18);
+            fitted.RadiusB = Math.Min(source.RadiusB, Math.Max(0.08, radius * 0.07));
             return true;
         }
     }
