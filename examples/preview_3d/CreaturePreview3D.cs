@@ -40,6 +40,7 @@ namespace PixelCreatures.Examples
         private CheckBox _equipmentToggle = null!;
         private CheckBox _multiviewToggle = null!;
         private CheckBox _geometryFitToggle = null!;
+        private CheckBox _topologyToggle = null!;
         private TextureRect _reference2D = null!;
         private EquipmentSeedSet _equipmentSeeds = EquipmentSeedSet.FromMaster(54321UL);
         private ulong _masterGearSeed = 54321UL;
@@ -281,7 +282,11 @@ namespace PixelCreatures.Examples
             };
             _multiviewToggle.Toggled += enabled =>
             {
-                if (enabled) _geometryFitToggle.SetPressedNoSignal(false);
+                if (enabled)
+                {
+                    _geometryFitToggle.SetPressedNoSignal(false);
+                    _topologyToggle.SetPressedNoSignal(false);
+                }
                 GeneratePreview();
             };
             column.AddChild(_multiviewToggle);
@@ -301,7 +306,11 @@ namespace PixelCreatures.Examples
             };
             _geometryFitToggle.Toggled += enabled =>
             {
-                if (enabled) _multiviewToggle.SetPressedNoSignal(false);
+                if (enabled)
+                {
+                    _multiviewToggle.SetPressedNoSignal(false);
+                    _topologyToggle.SetPressedNoSignal(false);
+                }
                 GeneratePreview();
             };
             column.AddChild(_geometryFitToggle);
@@ -312,6 +321,30 @@ namespace PixelCreatures.Examples
             };
             geometryFitHint.AddThemeFontSizeOverride("font_size", 11);
             column.AddChild(geometryFitHint);
+
+            _topologyToggle = new CheckBox
+            {
+                Text = "语义拓扑网格（实验 / 不含装备）",
+                ButtonPressed = false,
+                TooltipText = "按原始语义部件生成固定索引曲面，再用原版2D多视角轮廓和深度约束调整顶点；不构建SDF或体素并集。",
+            };
+            _topologyToggle.Toggled += enabled =>
+            {
+                if (enabled)
+                {
+                    _multiviewToggle.SetPressedNoSignal(false);
+                    _geometryFitToggle.SetPressedNoSignal(false);
+                }
+                GeneratePreview();
+            };
+            column.AddChild(_topologyToggle);
+            var topologyHint = new Label
+            {
+                Text = "独立拓扑实验：每个语义分组生成索引曲面，再按多视角约束移动顶点。当前仍可能有部件交叠、凹陷丢失或接缝，不代表已达到最终质量。",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            };
+            topologyHint.AddThemeFontSizeOverride("font_size", 11);
+            column.AddChild(topologyHint);
             _reference2D = new TextureRect
             {
                 Visible = false,
@@ -573,7 +606,8 @@ namespace PixelCreatures.Examples
                 ulong seed = StableHash.SeedFromText(_seedInput.Text);
                 bool experimental = _multiviewToggle.ButtonPressed;
                 bool geometryFit = _geometryFitToggle.ButtonPressed;
-                bool showEquipment = _equipmentToggle.ButtonPressed && !experimental && !geometryFit;
+                bool topology = _topologyToggle.ButtonPressed;
+                bool showEquipment = _equipmentToggle.ButtonPressed && !experimental && !geometryFit && !topology;
                 bool isBiped = string.Equals(familyId, "biped", StringComparison.OrdinalIgnoreCase);
 
                 CreatureGenome genome = CreatureRuntime.Sample(familyId, seed);
@@ -643,6 +677,31 @@ namespace PixelCreatures.Examples
                         $"\n调整分组：{fit.AdjustedRegions}，OBJ目标评估：{fit.Evaluations} 次，代理评估：{fit.ProxyEvaluations} 次" +
                         $"\n参数：{fit.ParameterSummary}";
                 }
+                else if (topology)
+                {
+                    SemanticTopologyResult result = SemanticTopologyPrototype.Build(model, new SemanticTopologyOptions
+                    {
+                        Directions = 8,
+                        LatitudeSegments = 12,
+                        LongitudeSegments = 24,
+                        RelaxationPasses = 2,
+                        SilhouetteSearchRadius = 3,
+                        SampleSides = 16,
+                        SampleRings = 8,
+                        UnitsPerPixel = PreviewUnitsPerPixel,
+                    });
+                    SetReference(result.ReferenceViews[0], model);
+                    objText = result.Mesh.ObjText;
+                    mtlText = result.Mesh.MtlText;
+                    vertexCount = result.Mesh.Vertices;
+                    triangleCount = result.Mesh.Triangles;
+                    reconstructionNote =
+                        $"\\n方法：语义分组径向拓扑 + 8视角顶点约束（不使用SDF/体素并集）" +
+                        $"\\n旧SDF主体轮廓IoU：平均 {result.BaselineMeanIoU:P1} / 最差 {result.BaselineWorstIoU:P1}" +
+                        $"\\n新拓扑初始IoU：平均 {result.TemplateMeanIoU:P1} / 最差 {result.TemplateWorstIoU:P1}" +
+                        $"\\n约束后IoU：平均 {result.FittedMeanIoU:P1} / 最差 {result.FittedWorstIoU:P1}" +
+                        $"\\n语义网格分组：{result.RegionCount}，调整顶点：{result.RelaxedVertices:N0}";
+                }
                 else
                 {
                     _reference2D.Visible = false;
@@ -657,7 +716,7 @@ namespace PixelCreatures.Examples
 
                 _lastObj = objText;
                 _lastMtl = mtlText;
-                _lastExportSummary = $"{familyId} / {(experimental ? "multiview" : geometryFit ? "geometry-fit" : style)} / seed {seed}";
+                _lastExportSummary = $"{familyId} / {(experimental ? "multiview" : geometryFit ? "geometry-fit" : topology ? "semantic-topology" : style)} / seed {seed}";
                 _seedResolved.Text = $"解析后的 Seed：{seed}";
                 _status.Text =
                     $"家族：{familyId}\n风格：{Styles[Math.Clamp(_styleSelector.Selected, 0, Styles.Length - 1)].Label}\n" +
