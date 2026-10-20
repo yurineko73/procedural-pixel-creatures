@@ -374,11 +374,18 @@ namespace PixelCreatures.Core.Shapes
             int upper = arm.RootBone;
             var ux = b.RestWorld(upper);
             double s = arm.Side == 0 ? 1 : arm.Side;
-            Vec3 at = ux.Origin + new Vec3(-armTop * 0.05, armTop * 0.55, s * armTop * 0.35);
+            // Place the plate relative to the shoulder/upper-arm frame, not by a large world-up
+            // offset. The old offset could leave a bright oval hovering halfway down the arm.
+            Vec3 armAxis = ux.AxisX.NormalizedOr(Vec3.UnitX);
+            Vec3 outward = new Vec3(0, 0, s);
+            Vec3 at = ux.Origin + armAxis * (armTop * 0.18) + Vec3.UnitY * (armTop * 0.10) +
+                outward * (armTop * 0.08);
             int g = b.Group("gear.pauldron", 0.6, arm.Side, GroupFlags.None, Bias + 0.3);
-            var basis = Mat3.LookAlong(new Vec3(0, 0, s), Vec3.UnitY);
+            var basis = Mat3.LookAlong(outward, Vec3.UnitY);
             var rot = AnatomyBuilder.QuatFromBasis(ux.Basis.Transposed * basis);
-            var p = b.Ellipsoid(g, upper, ux.InversePoint(at), new Vec3(armTop * 0.95 + 0.4, armTop * 0.6 + 0.35, armTop * 1.25 + 0.45), MaterialSlot.Metal, PatternDomain.None, 0, 1, rot, arm.Side);
+            var p = b.Ellipsoid(g, upper, ux.InversePoint(at),
+                new Vec3(armTop * 0.88 + 0.4, armTop * 0.58 + 0.35, armTop * 1.15 + 0.45),
+                MaterialSlot.Metal, PatternDomain.None, 0, 1, rot, arm.Side);
             p.Flags |= PrimFlags.NoPattern;
             p.Tag = "gear.pauldron";
             if (spike)
