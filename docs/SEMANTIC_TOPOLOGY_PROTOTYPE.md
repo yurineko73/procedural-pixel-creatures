@@ -49,7 +49,7 @@ The test checks deterministic output, non-empty indexed topology, restored facia
 - Connected components are based on source primitive bounds. They are not yet authored anatomical templates with explicit shared boundary loops.
 - Separate component surfaces can still overlap or show seams. This prototype does not yet provide a watertight, continuous whole-creature skin.
 - The mouth interior and teeth are still restored as detail geometry; the new path does not yet create a true articulated jaw or a topology-aware oral cavity.
-- Surface colour is assigned from the original renderer's sampled palette/material data. Full pixel-pattern/UV baking is not implemented.
+- Each topology face samples the original renderer's exact palette index and uses an unshaded `px_*` material. This preserves an approximate version of the pixel pattern at triangle resolution, but it is not a UV texture bake; fine patterns can be lost or smeared across large faces.
 - There is no Skeleton3D skinning, animation, UV unwrap, or GLB pipeline.
 - Multi-view silhouette IoU can improve while anatomy looks worse. Do not accept the method from IoU alone.
 
