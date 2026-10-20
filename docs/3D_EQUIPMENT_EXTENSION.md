@@ -172,3 +172,18 @@ Regressions: `export.preview_dental_lip_fit`, `export.preview_claw_toe_fit`, `ex
 `PreviewSegmentChainFit`: uses the source three-segment `LegRig` hierarchy for arthropod legs instead of globally sampled coarse SDF. Creates tubes at source rest-pose joint coordinates and overlap spheres at chain joints, leaving isolated non-leg appendages unaffected. Only complete tagged chains use this path; incomplete groups fall back.
 
 New regressions: `export.preview_visible_mouth_cavity`, `export.preview_ears_embed_in_skull`, `export.preview_arthropod_leg_chain`. No runtime green build/visual approval yet; use actual reported fixed seeds, and only accept P0 once mouth, teeth, ears and arthropod connections are verified across viewpoints.
+
+
+## 2026-10-20 — Visual rejection and root-cause audit
+
+The latest 3D screenshot set rejects the current fixes: the mouth is misplaced beneath the muzzle, teeth still look unsupported, paw claws/toes look detached, horn-like points are capped cone shapes with weak skull roots, and a horn can cover an eye.
+
+Main and feature branches have identical source for `Heads.cs` and `Appendages.cs`. The original builders use simple cone primitives for teeth, ear segments and horn chains, but the old renderer is not equivalent to an OBJ primitive dump. `Heads.cs` explicitly puts the upper tooth row inside the upper lip; mouth interior is attached to the head in a location computed from hinge/chin. `CreatureRenderer.CleanupInterior()` peels exposed pixels from `GroupFlags.Interior` so the closed mouth does not leak. The 3D static exporter lacks this cleanup and jaw animation.
+
+The previous `BuildMouthCutters` implementation was a failed heuristic: it checks for mouth metadata but then chooses an arbitrary point at 70% of the snout and shifts it downward, instead of using the original hinge/chin seam. `PreviewHeadAttachmentFit` fits only ear-bone groups, not horns. `PreviewClawFit` shifts a claw but does not guarantee a watertight union with the paw. These are symptoms of missing 3D semantic topology rather than isolated offsets.
+
+Required redesign before more feature work:
+- Replace the guessed mouth cut with a jaw/snout/lip/cavity assembly driven by explicit head metadata.
+- Mesh curved horns/ears as continuous tapered geometry, embed the root into the cranium, and enforce clearance from eye features.
+- Union/embed claws into paw surfaces and verify multi-view contact.
+- Keep 2D rendering untouched; add real Godot visual regression renders for the user's exact seeds. Do not mark these fixes as passed until inspected.
