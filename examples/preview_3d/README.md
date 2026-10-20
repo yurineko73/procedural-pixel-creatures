@@ -24,7 +24,7 @@ godot --path . res://examples/preview_3d/CreaturePreview3D.tscn
 - Select Fantasy (the family's original procedural gear), Modern, Sci-Fi, or Wasteland. The three new style packs use the same four independent slot streams.
 - In the original Fantasy schema, `gear.size` is shared by several pieces and therefore changes only when the master equipment seed changes; slot rerolls only change the genes belonging to that slot.
 - **Multi-view depth reconstruction** remains an experimental comparison mode; it is not the default exporter.
-- **几何拟合原型** captures the original 2D silhouettes from eight angles and performs a small, bounded optimization of the source anatomy groups before sending the result through the current OBJ exporter. The status panel reports proxy silhouette IoU and a separate before/after score from the actual exported OBJ. The proxy score drives optimization; the OBJ score is a validation metric. This is a test mode, not a validated fix.
+- **几何拟合原型** captures the original 2D silhouettes from eight angles and performs a small, bounded optimization of source anatomy groups. The actual exported-OBJ silhouette score drives acceptance; the fast primitive-projection IoU only helps choose which parameter direction to try first. A hard evaluation budget bounds preview cost. This is a test mode, not a validated fix.
 - Drag the model area to orbit; use the mouse wheel to zoom; reset the camera if needed.
 - **Export OBJ + MTL** writes the current preview to `user://exports/3d-preview/` and opens that directory.
 
@@ -106,4 +106,4 @@ This is code committed but **not verified in a running Godot scene or .NET test 
 
 ## Multi-view geometry-fit experiment (2026-10-20)
 
-See `docs/GEOMETRY_FIT_PROTOTYPE.md`. This branch adds a third preview toggle that optimizes bounded transforms for major source anatomy groups against original 2D silhouettes. The original 3D exporter remains unchanged and is used to build the fitted preview. Proxy IoU is only a diagnostic; inspect the resulting OBJ visually and run the test harness before drawing conclusions.
+See `docs/GEOMETRY_FIT_PROTOTYPE.md`. This branch adds a third preview toggle that optimizes bounded transforms for major source anatomy groups against original 2D silhouettes. Candidate acceptance is measured against the actual OBJ output from the existing exporter; proxy IoU only guides search direction. The evaluation budget is capped, and this remains experimental until the test harness and a visual Godot inspection pass.
