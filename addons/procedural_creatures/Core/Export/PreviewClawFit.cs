@@ -53,10 +53,13 @@ namespace PixelCreatures.Core.Export
             Vec3 tip = anchored + host.LocalRotation.Rotate(axis * length);
             Xform foot = anatomy.Skeleton.RestWorld(source.BoneA);
             Vec3 worldTip = foot.Point(tip);
-            // The preview floor is at y=0 before display scaling. Keep the tip of a
-            // hard claw above the floor instead of leaving an unattached fragment below it.
-            if (worldTip.Y < 0.34)
-                tip = foot.InversePoint(new Vec3(worldTip.X, 0.34, worldTip.Z));
+            double baseHeight = foot.Point(anchored).Y;
+            // Prevent ground penetration without forcing a low-lying claw to curl upward
+            // above its root. If the toe itself is near the floor, preserve a downward
+            // direction and leave full rest-pose floor correction to the scene placement.
+            double floorClearance = Math.Min(0.34, baseHeight - 0.06);
+            if (worldTip.Y < floorClearance)
+                tip = foot.InversePoint(new Vec3(worldTip.X, floorClearance, worldTip.Z));
 
             fitted = source.Clone();
             fitted.LocalA = anchored;
