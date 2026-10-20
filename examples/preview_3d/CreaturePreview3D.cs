@@ -37,6 +37,7 @@ namespace PixelCreatures.Examples
         private LineEdit _gearSeedInput = null!;
         private Label _gearSeedSummary = null!;
         private CheckBox _equipmentToggle = null!;
+        private CheckBox _multiviewToggle = null!;
         private EquipmentSeedSet _equipmentSeeds = EquipmentSeedSet.FromMaster(54321UL);
         private ulong _masterGearSeed = 54321UL;
         private ulong _gearColorSeed = StableHash.Derive(54321UL, "equipment.colors");
@@ -268,7 +269,24 @@ namespace PixelCreatures.Examples
             column.AddChild(styleHint);
 
             column.AddChild(new HSeparator());
-            column.AddChild(SectionLabel("03  当前模型"));
+            column.AddChild(SectionLabel("03  实验性重建模式"));
+            _multiviewToggle = new CheckBox
+            {
+                Text = "多视角深度重建（实验 / 不含装备）",
+                ButtonPressed = false,
+                TooltipText = "从16个方向读取原版2D深度与轮廓，重建静态网格；不是旧版SDF导出。",
+            };
+            _multiviewToggle.Toggled += _ => GeneratePreview();
+            column.AddChild(_multiviewToggle);
+            var multiviewHint = new Label
+            {
+                Text = "关闭：原来的3D导出。开启：从2D可见表面重建；暂不含装备或动画。首次重建可能短暂卡顿。",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            };
+            multiviewHint.AddThemeFontSizeOverride("font_size", 11);
+            column.AddChild(multiviewHint);
+            column.AddChild(new HSeparator());
+            column.AddChild(SectionLabel("04  当前模型"));
             _status = new Label
             {
                 Text = "正在生成…",
@@ -502,7 +520,8 @@ namespace PixelCreatures.Examples
                 string familyId = SelectedFamilyId;
                 string style = SelectedStyleId;
                 ulong seed = StableHash.SeedFromText(_seedInput.Text);
-                bool showEquipment = _equipmentToggle.ButtonPressed;
+                bool experimental = _multiviewToggle.ButtonPressed;
+                bool showEquipment = _equipmentToggle.ButtonPressed && !experimental;
                 bool isBiped = string.Equals(familyId, "biped", StringComparison.OrdinalIgnoreCase);
 
                 CreatureGenome genome = CreatureRuntime.Sample(familyId, seed);
@@ -522,21 +541,45 @@ namespace PixelCreatures.Examples
                 if (showEquipment && isBiped && !string.Equals(style, "fantasy", StringComparison.OrdinalIgnoreCase))
                     anatomy = EquipmentGenerator.Apply(anatomy, style, _equipmentSeeds);
 
-                ObjMeshResult result = ObjMeshExporter.Export(
-                    anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
-                ObjPreviewMeshBuilder.ReplaceModelMeshes(_modelRoot, result.ObjText, model.Palette);
+                string objText;
+                string mtlText;
+                int vertexCount, triangleCount;
+                string reconstructionNote = string.Empty;
+                if (experimental)
+                {
+                    // Body-only proof of concept; source is the original 2D renderer, not OBJ shapes.
+                    var captures = MultiviewReconstructor.Capture(model, 16);
+                    MultiviewResult reconstructed = MultiviewReconstructor.Build(
+                        captures, new MultiviewOptions { Directions = 16 });
+                    objText = reconstructed.ToObj(captures, model.Palette, PreviewUnitsPerPixel);
+                    mtlText = MultiviewResult.MaterialLibrary(model.Palette);
+                    vertexCount = reconstructed.Vertices.Count;
+                    triangleCount = reconstructed.Triangles.Count;
+                    reconstructionNote = $"\\n方法：16方向原版2D轮廓 + 深度交集\\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
+                }
+                else
+                {
+                    ObjMeshResult result = ObjMeshExporter.Export(
+                        anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
+                    objText = result.ObjText;
+                    mtlText = result.MtlText;
+                    vertexCount = result.Vertices;
+                    triangleCount = result.Triangles;
+                }
+                ObjPreviewMeshBuilder.ReplaceModelMeshes(_modelRoot, objText, model.Palette);
 
-                _lastObj = result.ObjText;
-                _lastMtl = result.MtlText;
-                _lastExportSummary = $"{familyId} / {style} / seed {seed}";
+                _lastObj = objText;
+                _lastMtl = mtlText;
+                _lastExportSummary = $"{familyId} / {(experimental ? "multiview" : style)} / seed {seed}";
                 _seedResolved.Text = $"解析后的 Seed：{seed}";
                 _status.Text =
                     $"家族：{familyId}\n风格：{Styles[Math.Clamp(_styleSelector.Selected, 0, Styles.Length - 1)].Label}\n" +
                     $"装备：{(showEquipment ? "开启" : "关闭")}\n" +
-                    $"网格：{result.Vertices:N0} 顶点 · {result.Triangles:N0} 三角形\n" +
+                    $"网格：{vertexCount:N0} 顶点 · {triangleCount:N0} 三角形\n" +
                     $"模型键：{anatomy.AnatomyKey:X16}" +
                     $"\n身体 Seed：{seed}" +
                     $"\n装备 Seed：{_masterGearSeed}" +
+                    reconstructionNote +
                     (_compatibilityNote.Length > 0 ? $"\n\n{_compatibilityNote}" : string.Empty);
                 _exportButton.Disabled = false;
             }
