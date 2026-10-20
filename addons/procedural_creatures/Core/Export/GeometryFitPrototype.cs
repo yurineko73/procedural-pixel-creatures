@@ -224,8 +224,8 @@ namespace PixelCreatures.Core.Export
             {
                 PrimitiveDef p = anatomy.Primitives[i];
                 if (p.Group < 0 || p.Group >= anatomy.Groups.Count) continue;
-                string name = anatomy.Groups[p.Group].Name;
-                if (!FitGroupNames.Contains(name) || name.StartsWith("gear", StringComparison.OrdinalIgnoreCase)) continue;
+                string groupName = anatomy.Groups[p.Group].Name;
+                if (!TryGetFitRegionName(groupName, out string name)) continue;
                 AddAnchor(name, WorldPoint(anatomy, p.BoneA, p.LocalA), anchors);
                 if (p.Kind != PrimKind.Ellipsoid)
                     AddAnchor(name, WorldPoint(anatomy, p.BoneB, p.LocalB), anchors);
@@ -240,6 +240,23 @@ namespace PixelCreatures.Core.Export
                 result.Add(new FitRegion { Name = name, Center = value.Sum / value.Count });
             }
             return result;
+        }
+
+        private static bool TryGetFitRegionName(string groupName, out string regionName)
+        {
+            if (FitGroupNames.Contains(groupName))
+            {
+                regionName = groupName;
+                return true;
+            }
+            foreach (string candidate in FitGroupOrder)
+            {
+                if (!groupName.StartsWith(candidate + ".", StringComparison.OrdinalIgnoreCase)) continue;
+                regionName = candidate;
+                return true;
+            }
+            regionName = string.Empty;
+            return false;
         }
 
         private static void AddAnchor(string name, Vec3 point, Dictionary<string, (Vec3 Sum, int Count)> anchors)
@@ -275,7 +292,8 @@ namespace PixelCreatures.Core.Export
             {
                 PrimitiveDef p = original.Clone();
                 if (p.Group >= 0 && p.Group < source.Groups.Count &&
-                    byName.TryGetValue(source.Groups[p.Group].Name, out FitRegion region))
+                    TryGetFitRegionName(source.Groups[p.Group].Name, out string regionName) &&
+                    byName.TryGetValue(regionName, out FitRegion region))
                 {
                     Xform boneA = source.Skeleton.RestWorld(p.BoneA);
                     p.LocalA = TransformLocalPoint(boneA, p.LocalA, region);
@@ -310,7 +328,8 @@ namespace PixelCreatures.Core.Export
                     Material = original.Material, Group = original.Group
                 };
                 if (feature.Group >= 0 && feature.Group < source.Groups.Count &&
-                    byName.TryGetValue(source.Groups[feature.Group].Name, out FitRegion? region))
+                    TryGetFitRegionName(source.Groups[feature.Group].Name, out string regionName) &&
+                    byName.TryGetValue(regionName, out FitRegion region))
                 {
                     Xform bone = source.Skeleton.RestWorld(feature.Bone);
                     feature.LocalPosition = TransformLocalPoint(bone, feature.LocalPosition, region);
