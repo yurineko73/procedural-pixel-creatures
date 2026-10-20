@@ -55,9 +55,14 @@ namespace PixelCreatures.Core.Export
                     relative.Y * relative.Y / (y * y) + relative.Z * relative.Z / (z * z));
                 if (normalized < 1e-8) continue;
 
-                // Horns have a wider root than most ears, so bury them more deeply. This
-                // hides the frustum cap and lets the visible tube emerge naturally from the skull.
-                double target = horn ? 0.48 : 0.62;
+                // Embed by a fraction of the actual root radius, not a fixed skull percentage.
+                // This hides the flat cap without dragging small horns/ears far into the head.
+                double minRadius = Math.Min(x, Math.Min(y, z));
+                double rootRadius = Math.Max(0.3, primitive.RadiusA);
+                double embedDepth = horn
+                    ? Math.Max(0.45, Math.Min(rootRadius * 0.9, minRadius * 0.42))
+                    : Math.Max(0.35, Math.Min(rootRadius * 0.9, minRadius * 0.35));
+                double target = DMath.Clamp(1.0 - embedDepth / minRadius, horn ? 0.48 : 0.55, 0.92);
                 Vec3 offset = Vec3.Zero;
                 if (normalized > target)
                 {
