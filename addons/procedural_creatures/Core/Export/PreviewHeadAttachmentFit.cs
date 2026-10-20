@@ -1,5 +1,6 @@
-// Static 3D-only ear attachment: the 2D generator positions ear bones on a silhouette.
-// Real 3D ears must begin slightly *inside* their owning skull, not beside it.
+// Static 3D-only fitting for ears and horns. The 2D generator anchors appendages to a
+// silhouette; closed 3D shells need their roots buried in the cranium and horns kept clear
+// of facial features. All offsets are export-only and never mutate source anatomy.
 using System;
 using System.Collections.Generic;
 using PixelCreatures.Core;
@@ -15,45 +16,111 @@ namespace PixelCreatures.Core.Export
         {
             for (int index = 0; index < anatomy.Primitives.Count; index++)
             {
-                PrimitiveDef p = anatomy.Primitives[index];
-                if (!p.Tag.EndsWith(".outer", StringComparison.OrdinalIgnoreCase) ||
-                    p.Kind != PrimKind.RoundCone || p.Group < 0 ||
-                    p.Group >= anatomy.Groups.Count ||
-                    _groupOffsets.ContainsKey(p.Group)) continue;
-                if (p.BoneA < 0 || p.BoneA >= anatomy.Skeleton.Count ||
-                    anatomy.Skeleton.Bones[p.BoneA].Role != BoneRole.Ear) continue;
+                PrimitiveDef primitive = anatomy.Primitives[index];
+                if (primitive.Group < 0 || primitive.Group >= anatomy.Groups.Count ||
+                    _groupOffsets.ContainsKey(primitive.Group) ||
+                    primitive.Kind != PrimKind.RoundCone ||
+                    primitive.BoneA < 0 || primitive.BoneA >= anatomy.Skeleton.Count) continue;
 
-                int headBone = anatomy.Skeleton.Bones[p.BoneA].Parent;
+                string groupName = anatomy.Groups[primitive.Group].Name ?? string.Empty;
+                bool ear = primitive.Tag.EndsWith(".outer", StringComparison.OrdinalIgnoreCase) &&
+                    anatomy.Skeleton.Bones[primitive.BoneA].Role == BoneRole.Ear;
+                bool horn = groupName.IndexOf("horn", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    anatomy.Skeleton.Bones[primitive.BoneA].Role == BoneRole.Head;
+                if (!ear && !horn) continue;
+
+                int headBone = ear ? anatomy.Skeleton.Bones[primitive.BoneA].Parent : primitive.BoneA;
                 if (headBone < 0 || headBone >= anatomy.Skeleton.Count) continue;
+
                 PrimitiveDef? skull = null;
                 foreach (PrimitiveDef candidate in anatomy.Primitives)
+                {
                     if (candidate.Kind == PrimKind.Ellipsoid && candidate.BoneA == headBone &&
                         candidate.Tag.EndsWith(".cranium", StringComparison.OrdinalIgnoreCase))
-                    { skull = candidate; break; }
+                    {
+                        skull = candidate;
+                        break;
+                    }
+                }
                 if (skull == null) continue;
 
                 Xform head = anatomy.Skeleton.RestWorld(headBone);
-                Vec3 rootWorld = anatomy.Skeleton.RestWorld(p.BoneA).Point(p.LocalA);
-                Vec3 relative = skull.LocalRotation.Conjugate.Rotate(head.InversePoint(rootWorld) - skull.LocalA);
-                double x = Math.Max(0.4, skull.Radii.X), y = Math.Max(0.4, skull.Radii.Y), z = Math.Max(0.4, skull.Radii.Z);
-                double t = Math.Sqrt(relative.X * relative.X / (x * x) +
+                Vec3 rootWorld = anatomy.Skeleton.RestWorld(primitive.BoneA).Point(primitive.LocalA);
+                Vec3 relative = skull.LocalRotation.Conjugate.Rotate(
+                    head.InversePoint(rootWorld) - skull.LocalA);
+                double x = Math.Max(0.4, skull.Radii.X);
+                double y = Math.Max(0.4, skull.Radii.Y);
+                double z = Math.Max(0.4, skull.Radii.Z);
+                double normalized = Math.Sqrt(relative.X * relative.X / (x * x) +
                     relative.Y * relative.Y / (y * y) + relative.Z * relative.Z / (z * z));
-                if (t < 1e-8) continue;
-                // A root already deep enough in the skull does not need translation.
-                double depth = Math.Min(p.RadiusA * 0.32, Math.Min(x, Math.Min(y, z)) * 0.12);
-                if (t <= 1.0 - depth / Math.Max(1.0, Math.Min(x, Math.Min(y, z)))) continue;
-                Vec3 localTarget = skull.LocalA + skull.LocalRotation.Rotate(relative / t *
-                    (1.0 - depth / Math.Max(1.0, Math.Min(x, Math.Min(y, z)))));
-                Vec3 offset = head.Point(localTarget) - rootWorld;
-                // Entire outer/inner ear is moved together, rather than independently
-                // projecting inner cartilage and opening a new gap.
-                _groupOffsets[p.Group] = offset;
+                if (normalized < 1e-8) continue;
+
+                // Horns have a wider root than most ears, so bury them more deeply. This
+                // hides the frustum cap and lets the visible tube emerge naturally from the skull.
+                double target = horn ? 0.48 : 0.62;
+                Vec3 offset = Vec3.Zero;
+                if (normalized > target)
+                {
+                    Vec3 localTarget = skull.LocalA + skull.LocalRotation.Rotate(relative / normalized * target);
+                    offset = head.Point(localTarget) - rootWorld;
+                }
+
+                if (horn)
+                    offset += EyeClearanceOffset(anatomy, primitive.Group, headBone, head, offset);
+
+                if (offset.LengthSquared > 1e-10)
+                    _groupOffsets[primitive.Group] = offset;
             }
+        }
+
+        private static Vec3 EyeClearanceOffset(CreatureAnatomy anatomy, int groupIndex,
+            int headBone, Xform head, Vec3 rootOffset)
+        {
+            Vec3 additional = Vec3.Zero;
+            foreach (FeatureDef eye in anatomy.Features)
+            {
+                if (eye.Kind != FeatureKind.Eye || eye.Bone != headBone) continue;
+                Vec3 eyeWorld = head.Point(eye.LocalPosition);
+                double nearestDistance = double.PositiveInfinity;
+                double nearestRadius = 0;
+                Vec3 nearestPoint = Vec3.Zero;
+
+                foreach (PrimitiveDef segment in anatomy.Primitives)
+                {
+                    if (segment.Group != groupIndex || segment.Kind != PrimKind.RoundCone ||
+                        segment.BoneA < 0 || segment.BoneA >= anatomy.Skeleton.Count ||
+                        segment.BoneB < 0 || segment.BoneB >= anatomy.Skeleton.Count) continue;
+
+                    Vec3 a = anatomy.Skeleton.RestWorld(segment.BoneA).Point(segment.LocalA) + rootOffset + additional;
+                    Vec3 b = anatomy.Skeleton.RestWorld(segment.BoneB).Point(segment.LocalB) + rootOffset + additional;
+                    Vec3 ab = b - a;
+                    double lengthSquared = ab.LengthSquared;
+                    double t = lengthSquared > 1e-12
+                        ? DMath.Clamp(Vec3.Dot(eyeWorld - a, ab) / lengthSquared, 0.0, 1.0) : 0.0;
+                    Vec3 point = a + ab * t;
+                    double distance = Vec3.Distance(eyeWorld, point);
+                    if (distance >= nearestDistance) continue;
+                    nearestDistance = distance;
+                    nearestPoint = point;
+                    nearestRadius = segment.RadiusA + (segment.RadiusB - segment.RadiusA) * t;
+                }
+
+                if (double.IsPositiveInfinity(nearestDistance)) continue;
+                double clearance = Math.Max(0.8, eye.Size * 0.55 + nearestRadius * 0.25);
+                if (nearestDistance >= clearance) continue;
+
+                // Move the entire horn away from the closest eye-to-horn vector. The root is
+                // already buried deeply enough to remain attached after this small correction.
+                Vec3 away = (nearestPoint - eyeWorld).NormalizedOr(head.Dir(Vec3.UnitY));
+                additional += away * Math.Min(1.75, clearance - nearestDistance + 0.15);
+            }
+            return additional;
         }
 
         public Vec3 Transform(PrimitiveDef primitive, Vec3 worldPoint) =>
             _groupOffsets.TryGetValue(primitive.Group, out Vec3 offset) ? worldPoint + offset : worldPoint;
 
         public bool HasFittedEar(int groupIndex) => _groupOffsets.ContainsKey(groupIndex);
+        public bool HasFittedHorn(int groupIndex) => _groupOffsets.ContainsKey(groupIndex);
     }
 }
