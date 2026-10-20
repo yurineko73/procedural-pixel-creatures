@@ -58,6 +58,37 @@ namespace PixelCreatures.Harness
                     Console.WriteLine(Path.Combine(outDir, "creature.obj"));
                     return 0;
                 }
+                case "multiview":
+                {
+                    // multiview <outDir> [family=biped] [bodySeed=12345] [directions=16] [gridStep=1.2]
+                    // Independent from ObjMeshExporter and all Preview*Fit repair passes.
+                    string familyId = args.Length > 2 ? args[2] : "biped";
+                    ulong seed = args.Length > 3
+                        ? ulong.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 12345UL;
+                    int directions = args.Length > 4 ? int.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture) : 16;
+                    double gridStep = args.Length > 5
+                        ? double.Parse(args[5], System.Globalization.CultureInfo.InvariantCulture) : 1.2;
+                    var registry = CreateRegistry();
+                    var family = registry.GetFamily(familyId);
+                    var genome = GenomeFactory.Sample(family, seed);
+                    if (familyId == "biped")
+                        genome = genome.With("gear.weapon", 0).With("gear.outfit", 0)
+                            .With("gear.helmet", 0).With("gear.shield", 0).With("gear.pauldrons", 0);
+                    var model = new CreatureFactory(registry).Build(genome);
+                    var captures = MultiviewReconstructor.Capture(model, directions);
+                    var mesh = MultiviewReconstructor.Build(captures, new MultiviewOptions
+                    {
+                        Directions = directions,
+                        GridStep = gridStep,
+                    });
+                    Directory.CreateDirectory(outDir);
+                    File.WriteAllText(Path.Combine(outDir, "creature.obj"), mesh.ToObj(captures, model.Palette));
+                    File.WriteAllText(Path.Combine(outDir, "creature.mtl"), MultiviewResult.MaterialLibrary(model.Palette));
+                    Console.WriteLine($"Multiview reconstruction: {mesh.Vertices.Count} vertices / {mesh.Triangles.Count} triangles");
+                    Console.WriteLine($"{familyId}, seed {seed}, {captures.Length} views, grid {mesh.GridStep:F2}, samples {mesh.SampledGridPoints:N0}");
+                    Console.WriteLine(Path.Combine(outDir, "creature.obj"));
+                    return 0;
+                }
                 case "goldens":
                 {
                     var rng = new Rng(42);
@@ -75,6 +106,7 @@ namespace PixelCreatures.Harness
                     Console.WriteLine("CoreHarness test <outdir> [filter|all] [seedsPerFamily]");
                     Console.WriteLine("CoreHarness goldens  (print deterministic baseline values)");
                     Console.WriteLine("CoreHarness obj <outDir> [family=biped] [seed=42] [style=fantasy|modern|scifi|wasteland]");
+                    Console.WriteLine("CoreHarness multiview <outDir> [family=biped] [bodySeed=12345] [directions=16] [gridStep=1.2]");
                     return command == "help" ? 0 : 1;
             }
         }
