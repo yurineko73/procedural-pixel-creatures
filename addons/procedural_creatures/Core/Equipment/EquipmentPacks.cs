@@ -146,11 +146,12 @@ namespace PixelCreatures.Core.Equipment
         {
             var shell = FindShell(bone);
             if (shell == null) throw new InvalidOperationException("No compatible shell for bone " + bone);
-            Ellipsoid(name, bone, shell.LocalA, shell.Radii * scale, material);
+            Ellipsoid(name, bone, shell.LocalA, shell.Radii * scale, material,
+                rotation: shell.LocalRotation);
         }
 
         public void Ellipsoid(string name, int bone, Vec3 localCenter, Vec3 radii, MaterialSlot material,
-            PrimFlags flags = PrimFlags.None)
+            PrimFlags flags = PrimFlags.None, Quat? rotation = null)
         {
             if (bone < 0 || bone >= _source.Skeleton.Count) throw new ArgumentOutOfRangeException(nameof(bone));
             if (radii.X <= 0 || radii.Y <= 0 || radii.Z <= 0 || !radii.IsFinite || !localCenter.IsFinite)
@@ -161,8 +162,8 @@ namespace PixelCreatures.Core.Equipment
             _shapes.Add(new PrimitiveDef
             {
                 Kind = PrimKind.Ellipsoid, Group = index, BoneA = bone,
-                LocalA = localCenter, Radii = radii, Material = material,
-                Flags = flags | PrimFlags.Hard | PrimFlags.NoPattern, Tag = tag
+                LocalA = localCenter, Radii = radii, LocalRotation = rotation ?? Quat.Identity,
+                Material = material, Flags = flags | PrimFlags.Hard | PrimFlags.NoPattern, Tag = tag
             });
             if (!_traits.Contains(tag)) _traits.Add(tag);
         }
