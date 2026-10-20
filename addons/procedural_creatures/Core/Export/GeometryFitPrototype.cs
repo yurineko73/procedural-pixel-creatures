@@ -247,7 +247,7 @@ namespace PixelCreatures.Core.Export
             {
                 PrimitiveDef p = original.Clone();
                 if (p.Group >= 0 && p.Group < source.Groups.Count &&
-                    byName.TryGetValue(source.Groups[p.Group].Name, out FitRegion? region))
+                    byName.TryGetValue(source.Groups[p.Group].Name, out FitRegion region))
                 {
                     Xform boneA = source.Skeleton.RestWorld(p.BoneA);
                     p.LocalA = TransformLocalPoint(boneA, p.LocalA, region);
