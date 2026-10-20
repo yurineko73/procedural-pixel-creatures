@@ -145,6 +145,9 @@ namespace PixelCreatures.Tests
                 MaxOffset = 0.5,
                 EllipsoidSides = 8,
                 EllipsoidRings = 5,
+                ExportSides = 8,
+                ExportRings = 4,
+                UnitsPerPixel = 0.04,
             });
 
             ctx.True(fit.ReferenceViews.Length == 4, "Geometry fit must compare the requested number of reference views");
@@ -157,6 +160,16 @@ namespace PixelCreatures.Tests
             ctx.True(!double.IsNaN(fit.FittedMeanIoU) && !double.IsInfinity(fit.FittedMeanIoU) &&
                 fit.FittedMeanIoU >= 0 && fit.FittedMeanIoU <= 1,
                 "Fitted primitive-projection IoU must be finite and normalized");
+            ctx.True(!double.IsNaN(fit.InitialMeshMeanIoU) && !double.IsInfinity(fit.InitialMeshMeanIoU) &&
+                fit.InitialMeshMeanIoU >= 0 && fit.InitialMeshMeanIoU <= 1,
+                "Initial exported-OBJ IoU must be finite and normalized");
+            ctx.True(!double.IsNaN(fit.FittedMeshMeanIoU) && !double.IsInfinity(fit.FittedMeshMeanIoU) &&
+                fit.FittedMeshMeanIoU >= 0 && fit.FittedMeshMeanIoU <= 1,
+                "Fitted exported-OBJ IoU must be finite and normalized");
+            ctx.True(fit.FittedMesh.Vertices > 0 && fit.FittedMesh.Triangles > 0 &&
+                !fit.FittedMesh.ObjText.Contains("NaN", StringComparison.Ordinal) &&
+                !fit.FittedMesh.ObjText.Contains("Infinity", StringComparison.Ordinal),
+                "Fitted OBJ must contain finite mesh geometry");
             double initialScore = fit.InitialMeanIoU * 0.7 + fit.InitialWorstIoU * 0.3;
             double fittedScore = fit.FittedMeanIoU * 0.7 + fit.FittedWorstIoU * 0.3;
             ctx.True(fittedScore + 1e-8 >= initialScore,
