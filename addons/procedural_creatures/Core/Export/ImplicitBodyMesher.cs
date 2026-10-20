@@ -198,6 +198,9 @@ namespace PixelCreatures.Core.Export
             }
 
             if (shapes.Count == 0) return mesh;
+            // Closed-mouth 3D preview: the 2D mouth interior is deliberately hidden under
+            // GroupFlags.Interior. Subtract a shallow seam from the rest-pose outer skin.
+            List<Shape> mouthCutters = groupIndex < 0 ? BuildMouthCutters(anatomy) : new List<Shape>();
 
             double margin = smoothness + targetStep;
             minX -= margin; minY -= margin; minZ -= margin;
@@ -225,7 +228,7 @@ namespace PixelCreatures.Core.Export
                 int index = Index(x, y, z);
                 Vec3 point = new Vec3(minX + x * step, minY + y * step, minZ + z * step);
                 points[index] = point;
-                distances[index] = Field(point, shapes, smoothness);
+                distances[index] = Field(point, shapes, mouthCutters, smoothness);
             }
 
             var edgeVertices = new Dictionary<long, int>();
@@ -250,7 +253,7 @@ namespace PixelCreatures.Core.Export
                 foreach (int[] split in Tetrahedra)
                 {
                     for (int i = 0; i < 4; i++) tetra[i] = cube[split[i]];
-                    EmitTetra(tetra, points, distances, inside, outside, edgeVertices, exactGridVertices, mesh, shapes, smoothness);
+                    EmitTetra(tetra, points, distances, inside, outside, edgeVertices, exactGridVertices, mesh, shapes, mouthCutters, smoothness);
                 }
             }
 
@@ -297,7 +300,16 @@ namespace PixelCreatures.Core.Export
             maxX = Math.Max(maxX, p.X + radius); maxY = Math.Max(maxY, p.Y + radius); maxZ = Math.Max(maxZ, p.Z + radius);
         }
 
-        private static double Field(Vec3 point, List<Shape> shapes, double smoothness)
+        private static double Field(Vec3 point, List<Shape> shapes, List<Shape> mouthCutters, double smoothness)
+        {
+            double result = OrganicField(point, shapes, smoothness);
+            // Hard subtraction keeps the slit open at low detail levels.
+            foreach (Shape mouth in mouthCutters)
+                result = Math.Max(result, -Distance(point, mouth));
+            return result;
+        }
+
+        private static double OrganicField(Vec3 point, List<Shape> shapes, double smoothness)
         {
             double result = double.PositiveInfinity;
             foreach (Shape shape in shapes)
@@ -306,6 +318,62 @@ namespace PixelCreatures.Core.Export
                 result = double.IsPositiveInfinity(result) ? d : SmoothMin(result, d, smoothness);
             }
             return result;
+        }
+
+        private static List<Shape> BuildMouthCutters(CreatureAnatomy anatomy)
+        {
+            var cutters = new List<Shape>();
+            // Only a head that actually has an authored mouth interior and jaw needs this
+            // rest-pose slit; do not carve out of eyes, mandibles or decorative skulls.
+            foreach (PrimitiveDef cavity in anatomy.Primitives)
+            {
+                if (cavity.Group < 0 || cavity.Group >= anatomy.Groups.Count ||
+                    !cavity.Tag.EndsWith(".mouthInterior", StringComparison.Ordinal)) continue;
+                int headBone = cavity.BoneA;
+                bool jaw = false;
+                PrimitiveDef? snout = null, skull = null;
+                foreach (PrimitiveDef p in anatomy.Primitives)
+                {
+                    if (p.BoneA != headBone) continue;
+                    if (p.Tag.EndsWith(".snout", StringComparison.Ordinal) &&
+                        p.Kind == PrimKind.RoundCone) snout = p;
+                    if (p.Tag.EndsWith(".cranium", StringComparison.Ordinal) &&
+                        p.Kind == PrimKind.Ellipsoid) skull = p;
+                }
+                foreach (PrimitiveDef p in anatomy.Primitives)
+                    if (p.Tag.EndsWith(".jawbone", StringComparison.Ordinal) &&
+                        p.BoneA >= 0 && p.BoneA < anatomy.Skeleton.Count &&
+                        anatomy.Skeleton.Bones[p.BoneA].Parent == headBone) { jaw = true; break; }
+                if (!jaw || (snout == null && skull == null)) continue;
+                Vec3 center, radii;
+                if (snout != null)
+                {
+                    Vec3 axis = snout.LocalB - snout.LocalA;
+                    double length = axis.Length;
+                    double radius = Math.Max(0.8, snout.RadiusB);
+                    center = Vec3.Lerp(snout.LocalA, snout.LocalB, 0.70) +
+                        new Vec3(0, -radius * 0.88, 0);
+                    radii = new Vec3(Math.Max(1.0, length * 0.52),
+                        Math.Max(0.35, radius * 0.21),
+                        Math.Max(0.65, radius * 0.95));
+                }
+                else
+                {
+                    // Short humanlike faces may have no separate snout primitive.
+                    center = skull!.LocalA + new Vec3(skull.Radii.X * 0.91,
+                        -skull.Radii.Y * 0.48, 0);
+                    radii = new Vec3(Math.Max(0.5, skull.Radii.X * 0.22),
+                        Math.Max(0.32, skull.Radii.Y * 0.10),
+                        Math.Max(0.65, skull.Radii.Z * 0.65));
+                }
+                cutters.Add(new Shape
+                {
+                    Kind = PrimKind.Ellipsoid, BoneA = anatomy.Skeleton.RestWorld(headBone),
+                    Center = center, Radii = radii, InverseRotation = Quat.Identity,
+                    Material = MaterialSlot.Mouth
+                });
+            }
+            return cutters;
         }
 
         private static double Distance(Vec3 point, Shape shape)
@@ -339,7 +407,8 @@ namespace PixelCreatures.Core.Export
 
         private static void EmitTetra(int[] tetra, Vec3[] points, double[] distances,
             int[] inside, int[] outside, Dictionary<long, int> edgeVertices,
-            Dictionary<int, int> exactGridVertices, MeshData mesh, List<Shape> shapes, double smoothness)
+            Dictionary<int, int> exactGridVertices, MeshData mesh, List<Shape> shapes,
+            List<Shape> mouthCutters, double smoothness)
         {
             int inCount = 0, outCount = 0;
             for (int i = 0; i < 4; i++)
@@ -357,7 +426,7 @@ namespace PixelCreatures.Core.Export
                 int v1 = EdgeVertex(a, c, points, distances, edgeVertices, exactGridVertices, mesh);
                 int v2 = EdgeVertex(a, d, points, distances, edgeVertices, exactGridVertices, mesh);
                 Vec3 outward = (points[b] + points[c] + points[d]) / 3.0 - points[a];
-                AddTriangle(v0, v1, v2, outward, mesh, shapes, smoothness);
+                AddTriangle(v0, v1, v2, outward, mesh, shapes, mouthCutters, smoothness);
                 return;
             }
 
@@ -368,7 +437,7 @@ namespace PixelCreatures.Core.Export
                 int v1 = EdgeVertex(a, c, points, distances, edgeVertices, exactGridVertices, mesh);
                 int v2 = EdgeVertex(a, d, points, distances, edgeVertices, exactGridVertices, mesh);
                 Vec3 outward = points[a] - (points[b] + points[c] + points[d]) / 3.0;
-                AddTriangle(v0, v1, v2, outward, mesh, shapes, smoothness);
+                AddTriangle(v0, v1, v2, outward, mesh, shapes, mouthCutters, smoothness);
                 return;
             }
 
@@ -378,8 +447,8 @@ namespace PixelCreatures.Core.Export
             int p10 = EdgeVertex(i1, o0, points, distances, edgeVertices, exactGridVertices, mesh);
             int p11 = EdgeVertex(i1, o1, points, distances, edgeVertices, exactGridVertices, mesh);
             Vec3 direction = (points[o0] + points[o1] - points[i0] - points[i1]) * 0.5;
-            AddTriangle(p00, p01, p10, direction, mesh, shapes, smoothness);
-            AddTriangle(p01, p11, p10, direction, mesh, shapes, smoothness);
+            AddTriangle(p00, p01, p10, direction, mesh, shapes, mouthCutters, smoothness);
+            AddTriangle(p01, p11, p10, direction, mesh, shapes, mouthCutters, smoothness);
         }
 
         private static int EdgeVertex(int a, int b, Vec3[] points, double[] distances,
@@ -415,29 +484,41 @@ namespace PixelCreatures.Core.Export
         }
 
         private static void AddTriangle(int a, int b, int c, Vec3 approximateOutward,
-            MeshData mesh, List<Shape> shapes, double smoothness)
+            MeshData mesh, List<Shape> shapes, List<Shape> mouthCutters, double smoothness)
         {
             Vec3 pa = mesh.Vertices[a], pb = mesh.Vertices[b], pc = mesh.Vertices[c];
             Vec3 cross = Vec3.Cross(pb - pa, pc - pa);
             if (cross.LengthSquared < 1e-10) return;
             Vec3 center = (pa + pb + pc) / 3.0;
-            Vec3 outward = FieldGradient(center, shapes, smoothness);
+            Vec3 outward = FieldGradient(center, shapes, mouthCutters, smoothness);
             if (outward.LengthSquared < 1e-10) outward = approximateOutward;
             if (Vec3.Dot(cross, outward) < 0) { int swap = b; b = c; c = swap; }
             MaterialSlot material = MaterialAt(center, shapes, smoothness);
+            double bodyDistance = OrganicField(center, shapes, smoothness);
+            foreach (Shape mouth in mouthCutters)
+            {
+                double cut = Distance(center, mouth);
+                // The newly exposed inner cavity wall is visibly dark; the surrounding
+                // organic skin continues to use its original Primary/Secondary palette.
+                if (Math.Abs(cut) < 0.8 && -cut >= bodyDistance - 0.08)
+                {
+                    material = MaterialSlot.Mouth;
+                    break;
+                }
+            }
             mesh.Faces.Add(new Face(a, b, c, material));
         }
 
-        private static Vec3 FieldGradient(Vec3 point, List<Shape> shapes, double smoothness)
+        private static Vec3 FieldGradient(Vec3 point, List<Shape> shapes, List<Shape> mouthCutters, double smoothness)
         {
             double h = Math.Max(0.25, smoothness * 0.5);
             Vec3 dx = new Vec3(h, 0, 0);
             Vec3 dy = new Vec3(0, h, 0);
             Vec3 dz = new Vec3(0, 0, h);
             return new Vec3(
-                Field(point + dx, shapes, smoothness) - Field(point - dx, shapes, smoothness),
-                Field(point + dy, shapes, smoothness) - Field(point - dy, shapes, smoothness),
-                Field(point + dz, shapes, smoothness) - Field(point - dz, shapes, smoothness));
+                Field(point + dx, shapes, mouthCutters, smoothness) - Field(point - dx, shapes, mouthCutters, smoothness),
+                Field(point + dy, shapes, mouthCutters, smoothness) - Field(point - dy, shapes, mouthCutters, smoothness),
+                Field(point + dz, shapes, mouthCutters, smoothness) - Field(point - dz, shapes, mouthCutters, smoothness));
         }
 
         private static MaterialSlot MaterialAt(Vec3 point, List<Shape> shapes, double smoothness)
