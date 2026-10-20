@@ -117,8 +117,11 @@ namespace PixelCreatures.Core.Export
                     Min = min,
                     Max = max,
                 };
-                if (!samplesByGroup.TryGetValue(primitive.Group, out List<PrimitiveSample>? regionSamples))
-                    samplesByGroup.Add(primitive.Group, regionSamples = new List<PrimitiveSample>());
+                if (!samplesByGroup.TryGetValue(primitive.Group, out List<PrimitiveSample>? regionSamples) || regionSamples == null)
+                {
+                    regionSamples = new List<PrimitiveSample>();
+                    samplesByGroup.Add(primitive.Group, regionSamples);
+                }
                 regionSamples.Add(sampledPrimitive);
             }
 
@@ -146,16 +149,18 @@ namespace PixelCreatures.Core.Export
 
                     var regionSamples = new List<Vec3>();
                     foreach (PrimitiveSample primitiveSample in component)
-                    {
                         regionSamples.AddRange(primitiveSample.Points);
-                        corePrimitiveIndices.Add(primitiveSample.PrimitiveIndex);
-                    }
                     if (regionSamples.Count < 12) continue;
                     string regionName = (anatomy.Groups[pair.Key].Name ?? "group") +
                         "_part_" + componentIndex.ToString(CultureInfo.InvariantCulture);
                     Patch patch = BuildRadialPatch(pair.Key, regionName, regionSamples,
                         options.LatitudeSegments, options.LongitudeSegments);
-                    if (patch.Vertices.Count >= 8 && patch.Faces.Count >= 12) patches.Add(patch);
+                    if (patch.Vertices.Count >= 8 && patch.Faces.Count >= 12)
+                    {
+                        patches.Add(patch);
+                        foreach (PrimitiveSample primitiveSample in component)
+                            corePrimitiveIndices.Add(primitiveSample.PrimitiveIndex);
+                    }
                     componentIndex++;
                 }
             }
