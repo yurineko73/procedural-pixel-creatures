@@ -60,3 +60,10 @@ The preview shader now explicitly uses opaque depth drawing and disabled face cu
 Not yet validated in a running Godot scene. Check front, side, and rear views after rebuilding; this source change must not be considered visually accepted until the body shell has no holes and garments no longer appear as stacked overlapping blobs.
 
 The OBJ preview builder also computes shared normals before material splitting, keeping skin shading smooth across material boundaries. Runtime verification remains pending.
+
+
+## P0 attachment and clothing stability update (2026-10-20)
+
+The 3D-only OBJ pipeline now includes same-bone projection for displaced tiny claws/teeth, hand/grip and forearm-centered equipment socket transforms, conservative tiny SDF-island cleanup, and a short fitted garment fallback for proportionally extreme bipeds. Modern/scifi chest covers also inherit the host shell rotation. The original 2D anatomy/animations/seed system are not changed by these export fixes.
+
+Reopen this scene after pulling the development branch. Try the same Body Seed/Equipment Seed with all four style choices and inspect front/side/rear, especially hands, feet, face, weapon grip and skirt edges. This update remains **unverified in Godot** until it is compiled and visually checked; the model is still static (no skinning, animation or actual fabric simulation).
