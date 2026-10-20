@@ -1,6 +1,6 @@
 // Conservative cleanup for accidental microscopic disconnected SDF islands.
 // This deliberately does NOT delete legitimate separate clothing/armour/eye pieces: the caller
-// runs it only on the fused organic or garment surface, before writing the OBJ.
+// runs it only on the fused organic body surface, never on multi-panel garment groups.
 using System;
 using System.Collections.Generic;
 
