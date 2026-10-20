@@ -92,7 +92,7 @@ and cleanup, subject to a bounded tolerance.
 
 ## Current boundaries / rejection conditions
 
-This proof of concept does NOT guarantee better visual quality. In particular:
+The screenshot review found severe faceting and missing facial structure. The branch now applies a gentle field-smoothing pass, source-normal tangent constraints, semantic material assignment and explicit bone-anchored facial-feature meshes. These are targeted fixes, not yet visually verified. This proof of concept does NOT guarantee better visual quality. In particular:
 
 1. **2D G-buffer depth is synthetic.** Soft screen-space unions and depth
    bias can make independent views geometrically inconsistent. The current
