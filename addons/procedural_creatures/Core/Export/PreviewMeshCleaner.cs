@@ -63,8 +63,11 @@ namespace PixelCreatures.Core.Export
             var rejected = new HashSet<int>();
             foreach (var kv in counts)
             {
-                if (kv.Value >= largest || kv.Value >= Math.Max(8, largest / 100)) continue;
-                if ((upper[kv.Key] - lower[kv.Key]).Length < 1.5)
+                if (kv.Value >= largest || kv.Value >= Math.Max(12, largest / 120)) continue;
+                // Grid-cell-sized islands are often 2+ units across after marching-tetrahedra
+                // interpolation. Use a conservative world-space bound instead of a single-cell
+                // cutoff, while keeping any component with meaningful surface area.
+                if ((upper[kv.Key] - lower[kv.Key]).Length < 2.4)
                     rejected.Add(kv.Key);
             }
             if (rejected.Count == 0) return 0;
