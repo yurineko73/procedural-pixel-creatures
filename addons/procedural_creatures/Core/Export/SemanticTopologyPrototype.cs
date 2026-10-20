@@ -581,6 +581,9 @@ namespace PixelCreatures.Core.Export
             obj.AppendLine("mtllib creature.mtl");
             var writer = new ObjWriter(obj, unitsPerPixel);
             ViewConstraint[] views = CreateViews(captures);
+            Mat3[] rotations = GetRotations(views);
+            Vec3[] offsets = GetOffsets(views);
+            Vec3[] eyes = GetEyes(views);
 
             foreach (Patch patch in patches)
             {
@@ -593,7 +596,7 @@ namespace PixelCreatures.Core.Export
                     Vec3 a = patch.Vertices[face.A], b = patch.Vertices[face.B], c = patch.Vertices[face.C];
                     Vec3 normal = Vec3.Cross(b - a, c - a).NormalizedOr(Vec3.UnitY);
                     MaterialSlot material = MultiviewReconstructor.MaterialAt((a + b + c) / 3.0,
-                        normal, captures, GetRotations(views), GetOffsets(views), GetEyes(views), model.Palette, anatomy);
+                        normal, captures, rotations, offsets, eyes, model.Palette, anatomy);
                     if ((int)material != previousMaterial)
                     {
                         obj.Append("usemtl MV_").AppendLine(material.ToString());
