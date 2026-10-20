@@ -232,6 +232,9 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
+            // Remove only tiny, disconnected SDF debris. Real separate limbs/ears and all
+            // hard accessories remain untouched by this conservative pass.
+            PreviewMeshCleaner.RemoveTinyIslands(mesh);
             if (mesh.Faces.Count == 0)
             {
                 mesh.PrimitiveIndices.Clear();
