@@ -40,6 +40,7 @@ namespace PixelCreatures.Tests
             r.Run("motion.states_and_directions_stay_in_canvas", ctx => CanvasSafety(ctx, registry, factory));
             r.Run("motion.turning_in_place_reorients_body", ctx => TurnInPlace(ctx, registry, factory));
             r.Run("anatomy.extreme_genes_build_move_and_render", ctx => ExtremeGenes(ctx, registry, factory));
+            r.Run("export.multiview_depth_reconstruction", ctx => MultiviewReconstructionSmoke(ctx, registry));
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("export.preview_reported_seed_regressions", ctx => PreviewScreenshotSeedsSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
@@ -70,6 +71,47 @@ namespace PixelCreatures.Tests
         // ------------------------------------------------------------------ math & random
 
         // ------------------------------------------------------------------ optional 3D export & style packs
+
+        private static void MultiviewReconstructionSmoke(TestContext ctx, CreatureRegistry registry)
+        {
+            var family = registry.GetFamily("biped");
+            var genome = GenomeFactory.Sample(family, 12345UL)
+                .With("gear.weapon", 0).With("gear.outfit", 0)
+                .With("gear.helmet", 0).With("gear.shield", 0).With("gear.pauldrons", 0);
+            CreatureModel model = new CreatureFactory(registry).Build(genome);
+            var captures = MultiviewReconstructor.Capture(model, 8);
+            ctx.True(captures.Length == 8, "Expected eight original renderer views");
+            int firstVisible = Array.FindIndex(captures[0].Visible, v => v);
+            ctx.True(firstVisible >= 0, "Original renderer capture must contain actual surface pixels");
+            if (firstVisible >= 0)
+            {
+                int x = firstVisible % captures[0].Width;
+                int y = firstVisible / captures[0].Width;
+                Vec3 point = captures[0].BackProject(x, y);
+                bool inside = captures[0].Project(point, out int px, out int py, out double depth);
+                ctx.True(inside && px == x && py == y,
+                    "Backprojected G-buffer pixel must reproject to the original pixel");
+                ctx.True(Math.Abs(depth - captures[0].Depth[firstVisible]) < 0.001,
+                    "Depth must be preserved by round-trip projection");
+            }
+            var mesh = MultiviewReconstructor.Build(captures, new MultiviewOptions
+            {
+                GridStep = 2.4, MaxGridPoints = 80000, Directions = 8
+            });
+            ctx.True(mesh.Vertices.Count > 0 && mesh.Triangles.Count > 0,
+                "Multi-view intersections must produce a non-empty 3D mesh");
+            ctx.True(mesh.SampledGridPoints <= 80000, "Adaptive grid must enforce maximum node budget");
+            string first = mesh.ToObj(captures, model.Palette);
+            string second = mesh.ToObj(captures, model.Palette);
+            ctx.True(first == second, "Multi-view OBJ output should be deterministic");
+            ctx.True(first.Contains("mtllib creature.mtl", StringComparison.Ordinal),
+                "Reconstruction export must reference its matching MTL");
+            ctx.True(!first.Contains("NaN", StringComparison.Ordinal) &&
+                !first.Contains("Infinity", StringComparison.Ordinal),
+                "Reconstruction contains invalid coordinates");
+            ctx.True(first.Contains("usemtl px_", StringComparison.Ordinal),
+                "Reconstructed surfaces must use observed original pixel palette colors");
+        }
 
         private static void ObjExportSmoke(TestContext ctx, CreatureRegistry reg)
         {
