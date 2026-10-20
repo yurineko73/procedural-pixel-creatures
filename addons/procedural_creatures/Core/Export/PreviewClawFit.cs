@@ -41,9 +41,9 @@ namespace PixelCreatures.Core.Export
             double ry = Math.Max(0.3, host.Radii.Y);
             double rz = Math.Max(0.3, host.Radii.Z);
             Vec3 relative = host.LocalRotation.Conjugate.Rotate(source.LocalA - host.LocalA);
-            double z = DMath.Clamp(relative.Z, -rz * 0.52, rz * 0.52);
+            double z = DMath.Clamp(relative.Z, -rz * 0.42, rz * 0.42);
             Vec3 anchored = host.LocalA + host.LocalRotation.Rotate(
-                new Vec3(rx * 0.76, ry * 0.12, z));
+                new Vec3(rx * 0.55, ry * 0.05, z));
             Vec3 axis = (source.LocalB - source.LocalA).NormalizedOr(Vec3.UnitX);
             // Forward/outward, with a shallow downward curve, not a free-floating vertical spike.
             axis = new Vec3(Math.Max(0.55, axis.X), DMath.Clamp(axis.Y, -0.38, 0.10),
