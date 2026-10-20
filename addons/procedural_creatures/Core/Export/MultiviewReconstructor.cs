@@ -38,12 +38,23 @@ namespace PixelCreatures.Core.Export
                 obj.Append("v ").Append((p.X * scale).ToString("G9", inv)).Append(' ')
                     .Append((p.Y * scale).ToString("G9", inv)).Append(' ')
                     .Append((p.Z * scale).ToString("G9", inv)).AppendLine();
+            // Reuse each camera transform for all faces; deterministic trigonometry is expensive.
+            var rotations = new Mat3[captures.Length];
+            var offsets = new Vec3[captures.Length];
+            var eyes = new Vec3[captures.Length];
+            for (int v = 0; v < captures.Length; v++)
+            {
+                var cap = captures[v];
+                rotations[v] = PixelCamera.WorldToView(cap.View.Elevation) * PixelCamera.YawRotation(cap.View.Yaw);
+                offsets[v] = PixelCamera.WorldToView(cap.View.Elevation).Mul(cap.View.RootOffset);
+                eyes[v] = rotations[v].Transposed.Mul(Vec3.UnitZ);
+            }
             int previous = -1;
             foreach (var f in Triangles)
             {
                 Vec3 a = Vertices[f.A], b = Vertices[f.B], c = Vertices[f.C];
                 Vec3 normal = Vec3.Cross(b - a, c - a).NormalizedOr(Vec3.UnitY);
-                int color = MultiviewReconstructor.PaletteAt((a + b + c) / 3.0, normal, captures);
+                int color = MultiviewReconstructor.PaletteAt((a + b + c) / 3.0, normal, captures, rotations, offsets, eyes);
                 if (color < CreaturePalette.FirstColorIndex || color >= palette.Colors.Count)
                     color = palette.Index(MaterialSlot.Primary, Shade.Base);
                 if (color != previous)
@@ -312,21 +323,22 @@ namespace PixelCreatures.Core.Export
             return dist;
         }
 
-        internal static int PaletteAt(Vec3 point, Vec3 normal, PixelDepthCapture[] captures)
+        internal static int PaletteAt(Vec3 point, Vec3 normal, PixelDepthCapture[] captures,
+            Mat3[] rotations, Vec3[] offsets, Vec3[] eyes)
         {
             double best = -Far;
             int color = 0;
-            foreach (var cap in captures)
+            for (int view = 0; view < captures.Length; view++)
             {
-                Mat3 transform = PixelCamera.WorldToView(cap.View.Elevation) * PixelCamera.YawRotation(cap.View.Yaw);
-                Vec3 eye = transform.Transposed.Mul(Vec3.UnitZ);
-                double facing = Vec3.Dot(normal, eye);
+                var cap = captures[view];
+                double facing = Vec3.Dot(normal, eyes[view]);
                 if (facing < best || facing <= 0) continue;
-                if (!cap.Project(point, out int x, out int y, out double z)) continue;
+                Vec3 p = rotations[view].Mul(point) + offsets[view];
+                int x = (int)Math.Floor(cap.OriginX + p.X), y = (int)Math.Floor(cap.OriginY - p.Y);
+                if (x < 0 || y < 0 || x >= cap.Width || y >= cap.Height) continue;
                 int i = y * cap.Width + x;
-                // Only associate a painted pixel with the surface if its observed depth is nearby.
-                // Otherwise a distant occluding limb could paint the wrong material onto the body.
-                if (!cap.Visible[i] || Math.Abs(cap.Depth[i] - z) > 2.5) continue;
+                // A distant occluding leg must not paint the colour of a face behind it.
+                if (!cap.Visible[i] || Math.Abs(cap.Depth[i] - p.Z) > 2.5) continue;
                 if (cap.PaletteIndex[i] < CreaturePalette.FirstColorIndex) continue;
                 best = facing;
                 color = cap.PaletteIndex[i];
