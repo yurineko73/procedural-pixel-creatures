@@ -335,8 +335,12 @@ namespace PixelCreatures.Core.Export
                     return 5.0; // outside a recorded viewport cannot be reconstructed reliably
 
                 int i = y * cap.Width + x;
-                double bound = view.Distance[i] - options.SilhouetteSlack;
-                if (cap.Visible[i])
+                double silhouetteDistance = view.Distance[i];
+                double bound = silhouetteDistance - options.SilhouetteSlack;
+                // Keep the outer pixel band governed by silhouette alone. The 2D renderer's
+                // depth bias and screen-space fillets are not a consistent 3D surface at edges;
+                // applying depth there was eroding thin limbs and lowering silhouette IoU.
+                if (cap.Visible[i] && silhouetteDistance < -0.75)
                 {
                     // +Z points toward the camera: a voxel in front of the measured surface is
                     // outside; a voxel behind it may simply be occluded, so ignore it past the
