@@ -163,3 +163,31 @@ The OBJ-to-Godot builder now calculates vertex normals across the complete OBJ b
 
 ### Scope / next phase
 P1 equipment catalogue expansion is **deferred**, not cancelled. First obtain green compilation/visual verification and tune P0 thresholds if necessary. Then expand curated equipment variants per slot (fantasy first, then modern/scifi/wasteland) with attachment socket and collision fit tests.
+
+
+## P0 screenshot triage follow-up (2026-10-20)
+
+**Code committed; build and visual verification still pending.** Follow-up analysis of the latest 3D preview screenshots found that the problem was not limited to detached claws: the exporter was excluding every soft Accent/White surface and every Faceted core primitive from the skin union, while using one fixed low blend radius. This left soft muzzles/hooves and some hard-shaded body parts as overlapping closed shells.
+
+Implemented on `feature/3d-modular-equipment`:
+- `ImplicitBodyMesher.ShouldUnify`: include soft Accent/White core anatomy and Faceted core shapes in the fused skin; continue to exclude hard/thin/translucent/front-only details, interior shapes, equipment and separately grouped appendages.
+- Raise organic skin blend radius from 0.9 to 1.15. Change material attribution to penalize deeply buried primitives so interior ellipsoids do not paint the visible surface solely because their absolute SDF distance is small.
+- `BuildSelected` now runs tiny-island cleanup on the fused organic body only. It no longer deletes small disconnected panels from garment meshes. Micro-island threshold was widened to match actual SDF grid scale while still requiring a small face count.
+- `PreviewAttachmentRepair` now searches same-bone and ancestor limb hosts, including round-cone segments, and translates both endpoints in world space. It fits claws/teeth/fangs plus hoof/tusk/mandible anchors; only tiny claws/teeth/fangs are suppressed when clearly detached.
+- `PreviewEquipmentSockets`: removed the 30% minimum weapon scale that could still let long spears/staves cross the display floor; scale now derives from the actual hand-to-floor clearance.
+- `Shapes/Gear.cs`: raise caps/helmets above the eye band, shift the hood shell backward to leave the face visible, and seat pauldrons closer to the shoulder/upper-arm frame.
+
+Added regressions:
+- `export.preview_ancestor_limb_attachment`
+- `export.preview_fuses_soft_accent_and_faceted_skin`
+- `export.preview_headgear_eye_clearance`
+- Expanded `export.preview_weapon_hand_socket` to assert floor clearance.
+
+### Important scope note
+The screenshots include a `plantfolk` family, but the current tracked GitHub branch's `Core/Families` directory does not contain a `PlantfolkFamily` implementation. The shared 3D export fixes apply to any anatomy passed to the exporter, but plantfolk-specific source-generation defects cannot be patched until that local family implementation is available in the repository.
+
+### Next validation
+1. Run .NET CoreHarness and Godot 4.7.1 self-tests; fix any compile/test failures before declaring the pass complete.
+2. Re-test the exact screenshots' seeds, where reproducible, from front/side/rear views.
+3. Inspect biped headgear, pauldrons, teeth, claws, weapon floor clearance; quadruped hooves; reptile jaw/claws; arthropod legs; and the plantfolk family if its source is checked in.
+4. Verify the fusion did not over-smooth intended hard anatomy or merge separate horns/wings into the skin. P1 equipment expansion remains deferred until this pass is visually accepted.
