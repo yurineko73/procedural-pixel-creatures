@@ -81,10 +81,18 @@ namespace PixelCreatures.Harness
                         Directions = directions,
                         GridStep = gridStep,
                     });
+                    double[] overlap = MultiviewSilhouetteMetrics.IntersectionOverUnion(mesh, captures);
+                    double worst = 1.0, average = 0;
+                    foreach (double score in overlap) { worst = Math.Min(worst, score); average += score; }
+                    average /= overlap.Length;
                     Directory.CreateDirectory(outDir);
+                    File.WriteAllText(Path.Combine(outDir, "silhouette_iou.txt"),
+                        $"Mean: {average:P2}\\nWorst: {worst:P2}\\n" +
+                        string.Join("\\n", Array.ConvertAll(overlap, score => score.ToString("F4", System.Globalization.CultureInfo.InvariantCulture))));
                     File.WriteAllText(Path.Combine(outDir, "creature.obj"), mesh.ToObj(captures, model.Palette));
                     File.WriteAllText(Path.Combine(outDir, "creature.mtl"), MultiviewResult.MaterialLibrary(model.Palette));
                     Console.WriteLine($"Multiview reconstruction: {mesh.Vertices.Count} vertices / {mesh.Triangles.Count} triangles");
+                    Console.WriteLine($"Source 2D silhouette IoU: average {average:P1}, worst {worst:P1} (not an appearance score)");
                     Console.WriteLine($"{familyId}, seed {seed}, {captures.Length} views, grid {mesh.GridStep:F2}, samples {mesh.SampledGridPoints:N0}");
                     Console.WriteLine(Path.Combine(outDir, "creature.obj"));
                     return 0;
