@@ -60,7 +60,19 @@ namespace PixelCreatures.Core.Export
             {
                 if (mergedPrimitiveIndices.Contains(index)) continue;
                 PrimitiveDef source = anatomy.Primitives[index];
-                if (!PreviewAttachmentRepair.TryRepair(anatomy, source, out PrimitiveDef p)) continue;
+                PrimitiveDef p;
+                // A tooth is fitted to the *upper lip*, and a claw to its *own toe*.
+                // Generic nearest-surface projection is only appropriate for other details:
+                // it can pull teeth outside the mouth or project toes onto the opposite leg.
+                if (PreviewDentalFit.Applies(anatomy, source))
+                {
+                    if (!PreviewDentalFit.TryFit(anatomy, source, out p)) continue;
+                }
+                else if (PreviewClawFit.Applies(source))
+                {
+                    if (!PreviewClawFit.TryFit(anatomy, source, out p)) continue;
+                }
+                else if (!PreviewAttachmentRepair.TryRepair(anatomy, source, out p)) continue;
                 if (p.Group < 0 || p.Group >= anatomy.Groups.Count) continue;
                 obj.Append("o primitive_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine();
                 obj.Append("usemtl ").Append(p.Material.ToString()).AppendLine();
