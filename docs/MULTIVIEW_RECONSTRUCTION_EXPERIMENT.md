@@ -61,7 +61,7 @@ New path:
 `CreatureAnatomy -> original CreatureRenderer 16 direction rasterization ->
 post-cleanup G-buffer depth/silhouette/primitive provenance -> multi-view visual hull + truncated front-depth constraints -> marching tetrahedra -> mesh -> OBJ`.
 
-The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExporter.Export`. It uses rendered depth, normals and silhouettes as geometric constraints. The separate eye/pupil/highlight/nostril meshes reuse `ObjMeshExporter.AppendFeatures` and its existing `PreviewFeatureFit` solely to position those details.
+The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExporter.Export`. It uses rendered silhouettes as the conservative volume constraint and only uses front depth in a truncated band more than 0.75 pixels inside the silhouette. Captured normals are retained for diagnostics/material selection, not used to carve the body field. The separate eye/pupil/highlight/nostril meshes reuse `ObjMeshExporter.AppendFeatures` and its existing `PreviewFeatureFit` solely to position those details.
 
 ### Details
 
@@ -69,8 +69,10 @@ The reconstructed body does not call `ImplicitBodyMesher.Build` or `ObjMeshExpor
 - `PixelDepthCapture.BackProject` uses the inverse of the original Y-axis
   yaw plus 30° oblique orthographic camera to obtain observed 3D points.
 - Per-image chamfer distance approximates the final 2D silhouette. A 3D
-  sample must remain inside the silhouette of **every** observation and must
-  not protrude in front of any observed raster depth beyond `DepthSlack`.
+  sample must remain inside the silhouette of **every** observation. The outer
+  pixel band is controlled by silhouettes alone; interior front-depth samples
+  refine only nearby surface points and are ignored farther than `DepthTruncation`
+  behind the visible surface.
 - A bounded 3D grid samples the resulting intersection field. Marching
   tetrahedra with shared edge vertices produces an OBJ surface.
 - `MultiviewSilhouetteMetrics` rasterizes the reconstructed triangle silhouettes
@@ -87,7 +89,7 @@ The screenshot review found severe faceting and missing facial structure. The fi
 1. **2D G-buffer depth is synthetic.** Soft screen-space unions and depth
    bias can make independent views geometrically inconsistent. The current
    tolerance makes intersections possible; it is not an optimization solver
-   yet. A strict multi-view match might be mathematically impossible. Depth constraints are deliberately truncated: they refine the observed surface but do not define the entire hidden interior.
+   yet. A strict multi-view match might be mathematically impossible. Depth constraints are deliberately truncated and excluded from the outer silhouette band: they refine interior surface depth but do not define the hidden interior or erode narrow silhouettes.
 2. **Occlusion:** A hidden ear root, mouth interior, occluded tooth or underside
    cannot be reconstructed from visible pixels alone. Anatomical priors and
    bone-constrained reconstruction are still required for a usable final model.
