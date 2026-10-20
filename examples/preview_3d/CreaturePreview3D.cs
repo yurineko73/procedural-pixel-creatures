@@ -11,6 +11,7 @@ using PixelCreatures.Core.Anatomy;
 using PixelCreatures.Core.Equipment;
 using PixelCreatures.Core.Export;
 using PixelCreatures.Core.Genetics;
+using PixelCreatures.Core.Rendering;
 using PixelCreatures.Runtime;
 
 namespace PixelCreatures.Examples
@@ -38,6 +39,7 @@ namespace PixelCreatures.Examples
         private Label _gearSeedSummary = null!;
         private CheckBox _equipmentToggle = null!;
         private CheckBox _multiviewToggle = null!;
+        private TextureRect _reference2D = null!;
         private EquipmentSeedSet _equipmentSeeds = EquipmentSeedSet.FromMaster(54321UL);
         private ulong _masterGearSeed = 54321UL;
         private ulong _gearColorSeed = StableHash.Derive(54321UL, "equipment.colors");
@@ -285,6 +287,15 @@ namespace PixelCreatures.Examples
             };
             multiviewHint.AddThemeFontSizeOverride("font_size", 11);
             column.AddChild(multiviewHint);
+            _reference2D = new TextureRect
+            {
+                Visible = false,
+                CustomMinimumSize = new Vector2(0, 160),
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+                TooltipText = "原版2D渲染器的真实基准画面（0°）。与右侧新重建的3D模型对照。",
+            };
+            column.AddChild(_reference2D);
             column.AddChild(new HSeparator());
             column.AddChild(SectionLabel("04  当前模型"));
             _status = new Label
@@ -552,6 +563,7 @@ namespace PixelCreatures.Examples
                     MultiviewResult reconstructed = MultiviewReconstructor.Build(
                         captures, new MultiviewOptions { Directions = 16 });
                     objText = reconstructed.ToObj(captures, model.Palette, PreviewUnitsPerPixel);
+                    SetReference(captures[0], model);
                     mtlText = MultiviewResult.MaterialLibrary(model.Palette);
                     vertexCount = reconstructed.Vertices.Count;
                     triangleCount = reconstructed.Triangles.Count;
@@ -559,6 +571,7 @@ namespace PixelCreatures.Examples
                 }
                 else
                 {
+                    _reference2D.Visible = false;
                     ObjMeshResult result = ObjMeshExporter.Export(
                         anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
                     objText = result.ObjText;
@@ -585,10 +598,30 @@ namespace PixelCreatures.Examples
             }
             catch (Exception ex)
             {
+                _reference2D.Visible = false;
                 _status.Text = "生成失败：\n" + ex.Message;
                 _exportButton.Disabled = true;
                 GD.PushError("[CreaturePreview3D] " + ex);
             }
+        }
+
+        private void SetReference(PixelDepthCapture capture, CreatureModel model)
+        {
+            var lut = new byte[256 * 4];
+            model.Palette.BuildLut(lut, 0);
+            byte[] rgba = new byte[capture.Width * capture.Height * 4];
+            for (int i = 0; i < capture.PaletteIndex.Length; i++)
+            {
+                int source = capture.PaletteIndex[i] * 4;
+                int destination = i * 4;
+                rgba[destination] = lut[source];
+                rgba[destination + 1] = lut[source + 1];
+                rgba[destination + 2] = lut[source + 2];
+                rgba[destination + 3] = lut[source + 3];
+            }
+            Image image = Image.CreateFromData(capture.Width, capture.Height, false, Image.Format.Rgba8, rgba);
+            _reference2D.Texture = ImageTexture.CreateFromImage(image);
+            _reference2D.Visible = true;
         }
 
         private void ExportCurrentModel()
