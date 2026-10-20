@@ -567,7 +567,7 @@ namespace PixelCreatures.Examples
                     mtlText = MultiviewResult.MaterialLibrary(model.Palette);
                     vertexCount = reconstructed.Vertices.Count;
                     triangleCount = reconstructed.Triangles.Count;
-                    reconstructionNote = $"\\n方法：16方向原版2D轮廓 + 深度交集\\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
+                    reconstructionNote = $"\n方法：16方向原版2D轮廓 + 深度交集\n体素步长：{reconstructed.GridStep:F2}，采样点：{reconstructed.SampledGridPoints:N0}";
                 }
                 else
                 {
