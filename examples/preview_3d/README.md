@@ -88,3 +88,15 @@ Verification remains pending: this environment cannot run Godot/.NET or clone th
 For 3D OBJ export, upper teeth are now placed relative to the original snout/lip instead of the nearest generic surface, nails/claws are positioned from the same paw/palm ellipsoid rather than the old 2D toe-silhouette offset, and held weapons pivot around the original hand grip using a style-specific rest axis. Hand claw tagging has been made consistent with foot tagging. This affects the static preview only; the source 2D body/animation is not altered.
 
 **Please retest** Body Seed `12345` / Equipment Seed `54321` from front/side after rebuilding Godot, then switch to Body Seed `973718778264341244` / Equipment Seed `3941624577870863579`. Check mouth closure, paw nail connectivity, weapon orientation and platform intersection. Source regressions have been committed, but no .NET/Godot runtime test has been executed in the assistant environment.
+
+
+## P0 mouth / ear / arthropod geometry update (2026-10-20)
+
+The original 2D head has a hidden `.mouthInterior`; static OBJ now carves a small visible mouth indentation from the unioned skin below an authored jaw/snout, with a dark `Mouth` inner material. The mouth remains static and should not be mistaken for a real animated jaw opening. Ear groups are shifted into the skull as a whole, and the three tagged segments of arthropod legs are rendered directly from their rest-pose bones with shared joints to prevent coarse SDF fragmentation.
+
+Please reproduce:
+- biped Body `12345`, Equipment `54321` — mouth visible under snout, teeth in lip
+- biped Body `5437137294946840838`, Equipment `17047702928857436918` — ears embedded
+- arthropod Body `14734810077418951438`, Equipment `9423138326607858554` — leg joints continuous
+
+This is code committed but **not verified in a running Godot scene or .NET test harness**. If tests fail or the opening appears behind the jaw, fix placement rather than treating the new geometry as accepted.
