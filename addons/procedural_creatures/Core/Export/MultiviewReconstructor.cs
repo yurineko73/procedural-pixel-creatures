@@ -31,6 +31,8 @@ namespace PixelCreatures.Core.Export
         public int ViewCount;
         public double GridStep;
         public int SampledGridPoints;
+        public int ExportedVertices { get; private set; }
+        public int ExportedTriangles { get; private set; }
 
         public string ToObj(PixelDepthCapture[] captures, CreaturePalette palette, CreatureAnatomy anatomy, double scale = 0.01)
         {
@@ -71,7 +73,9 @@ namespace PixelCreatures.Core.Export
             }
             // Facial features are explicit geometry anchored to the original anatomy bones;
             // rasterized eye pixels alone cannot create a physical eye or nostril.
-            ObjMeshExporter.AppendFeatures(obj, anatomy, Vertices.Count, sides: 20, rings: 12, unitsPerPixel: scale);
+            var features = ObjMeshExporter.AppendFeatures(obj, anatomy, Vertices.Count, sides: 20, rings: 12, unitsPerPixel: scale);
+            ExportedVertices = Vertices.Count + features.Vertices;
+            ExportedTriangles = Triangles.Count + features.Triangles;
             return obj.ToString();
         }
 
