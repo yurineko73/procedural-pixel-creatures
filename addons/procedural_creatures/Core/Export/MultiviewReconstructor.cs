@@ -69,6 +69,9 @@ namespace PixelCreatures.Core.Export
                 obj.Append("f ").Append(f.A + 1).Append(' ').Append(f.B + 1)
                     .Append(' ').Append(f.C + 1).AppendLine();
             }
+            // Facial features are explicit geometry anchored to the original anatomy bones;
+            // rasterized eye pixels alone cannot create a physical eye or nostril.
+            ObjMeshExporter.AppendFeatures(obj, anatomy, Vertices.Count, sides: 20, rings: 12, unitsPerPixel: scale);
             return obj.ToString();
         }
 
@@ -85,7 +88,22 @@ namespace PixelCreatures.Core.Export
                     .Append((c.B / 255.0).ToString("F6", CultureInfo.InvariantCulture)).AppendLine();
                 sb.AppendLine("Ka 0 0 0\nKs 0 0 0\nillum 1");
             }
+            AddFeatureMaterial(sb, "FeatureOutline", "0.025 0.02 0.035");
+            AddFeatureMaterial(sb, "FeatureSocket", "0.07 0.045 0.07");
+            AddFeatureMaterial(sb, "FeatureSclera", "0.92 0.87 0.77");
+            AddFeatureMaterial(sb, "FeatureIris", "0.48 0.22 0.16");
+            AddFeatureMaterial(sb, "FeaturePupil", "0.018 0.012 0.025");
+            AddFeatureMaterial(sb, "FeatureHighlight", "1.0 0.96 0.86");
+            AddFeatureMaterial(sb, "FeatureGlow", "0.2 0.85 1.0");
+            AddFeatureMaterial(sb, "FeatureNostril", "0.06 0.025 0.035");
             return sb.ToString();
+        }
+
+        private static void AddFeatureMaterial(StringBuilder sb, string name, string color)
+        {
+            sb.Append("newmtl ").AppendLine(name);
+            sb.Append("Kd ").AppendLine(color);
+            sb.AppendLine("Ka 0.02 0.02 0.02\nKs 0 0 0\nillum 1");
         }
     }
 
