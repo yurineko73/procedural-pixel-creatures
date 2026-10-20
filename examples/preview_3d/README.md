@@ -111,7 +111,7 @@ See `docs/GEOMETRY_FIT_PROTOTYPE.md`. This branch adds a third preview toggle th
 
 ## Semantic topology experiment (2026-10-21)
 
-On branch \`experiment/semantic-topology-prototype\`, the preview includes **语义拓扑网格（实验 / 不含装备）**. Select biped, Body Seed \`12345\`, turn equipment off, and enable this mode.
+On branch `experiment/semantic-topology-prototype`, the preview includes **语义拓扑网格（实验 / 不含装备）**. Select biped, Body Seed `12345`, turn equipment off, and enable this mode.
 
 This is a separate mesh path: it samples source primitive surfaces, separates spatially disconnected components within shared semantic groups, builds indexed radial surfaces, and relaxes vertices against the original renderer's multi-view silhouette/depth. It does not use the SDF skin mesh or voxel-volume reconstruction as the final body mesh. The SDF exporter is run only to report a comparison baseline score.
 
