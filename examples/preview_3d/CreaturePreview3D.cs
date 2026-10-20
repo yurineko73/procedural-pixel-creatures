@@ -682,12 +682,12 @@ namespace PixelCreatures.Examples
                     SemanticTopologyResult result = SemanticTopologyPrototype.Build(model, new SemanticTopologyOptions
                     {
                         Directions = 8,
-                        LatitudeSegments = 12,
-                        LongitudeSegments = 24,
+                        LatitudeSegments = 18,
+                        LongitudeSegments = 36,
                         RelaxationPasses = 2,
                         SilhouetteSearchRadius = 3,
-                        SampleSides = 16,
-                        SampleRings = 8,
+                        SampleSides = 24,
+                        SampleRings = 12,
                         UnitsPerPixel = PreviewUnitsPerPixel,
                     });
                     SetReference(result.ReferenceViews[0], model);
