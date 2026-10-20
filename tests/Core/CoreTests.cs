@@ -104,9 +104,11 @@ namespace PixelCreatures.Tests
             {
                 ("biped", 1120767436259506315UL),
                 ("biped", 479287935487803784UL),
+                ("biped", 5437137294946840838UL), // user's detached ear screenshot
                 ("quadruped", 6484199581679128020UL),
                 ("reptile", 5588374102731924563UL),
                 ("arthropod", 17995465277924679519UL),
+                ("arthropod", 14734810077418951438UL), // user's disconnected leg screenshot
                 ("amorphous", 12144879715512382633UL),
             };
             foreach (var testCase in cases)
