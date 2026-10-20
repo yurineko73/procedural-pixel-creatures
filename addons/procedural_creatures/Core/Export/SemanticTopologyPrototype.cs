@@ -60,8 +60,8 @@ namespace PixelCreatures.Core.Export
 
     /// <summary>
     /// A separate mesh construction path: semantic primitive samples seed a regular indexed
-    /// radial surface for each anatomy group. Vertex positions are then constrained by multi-view
-    /// raster observations. No SDF union, marching tetrahedra, or group-scale/offset search is used.
+    /// radial surface for each connected anatomy component. Vertex positions are then constrained
+    /// by multi-view raster observations. SDF output is used only as a comparison metric, not as final geometry.
     /// </summary>
     public static partial class SemanticTopologyPrototype
     {
