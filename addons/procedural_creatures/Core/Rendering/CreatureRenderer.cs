@@ -199,6 +199,18 @@ namespace PixelCreatures.Core.Rendering
             return stats;
         }
 
+        /// <summary>
+        /// Read-only diagnostic snapshot of the most recent Render call.
+        /// Must be invoked before the renderer processes another frame; copying makes the result independent.
+        /// Visible excludes the ground shadow and includes post-cleanup silhouettes (not feature stamp overlays).
+        /// </summary>
+        public PixelDepthCapture CaptureDepth(PixelFrame frame, in ViewSpec view)
+        {
+            if (frame.Width != _w || frame.Height != _h)
+                throw new ArgumentException("Depth capture must match the last rendered frame.", nameof(frame));
+            return new PixelDepthCapture(frame, view, _pflags, _z, _nx, _ny, _nz, _prim, _group, FlagCovered);
+        }
+
         private int _lastW = -1, _lastH = -1;
         private int _dx0, _dy0, _dx1 = -1, _dy1 = -1; // region written by the previous frame
 
