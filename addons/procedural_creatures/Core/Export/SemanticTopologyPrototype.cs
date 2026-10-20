@@ -1,7 +1,7 @@
 // Experimental semantic-topology mesh path.
-// Unlike ImplicitBodyMesher and MultiviewReconstructor, this path never builds an SDF or voxel volume.
-// It builds a fixed indexed surface per semantic anatomy group, then relaxes those vertices against
-// the original renderer's multi-view silhouette/depth observations. It is a prototype, not a final rig.
+// The final skin mesh is not generated from SDF or voxel volumes. The legacy SDF exporter is
+// called only to measure a comparison baseline; its geometry is never appended to the final output.
+// The new path builds indexed semantic surfaces and relaxes their vertices against multi-view data.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
