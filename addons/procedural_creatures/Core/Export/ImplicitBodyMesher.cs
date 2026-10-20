@@ -355,10 +355,10 @@ namespace PixelCreatures.Core.Export
                     double length = axis.Length;
                     double radius = Math.Max(0.8, snout.RadiusB);
                     center = Vec3.Lerp(snout.LocalA, snout.LocalB, 0.70) +
-                        new Vec3(0, -radius * 0.88, 0);
-                    radii = new Vec3(Math.Max(1.0, length * 0.52),
-                        Math.Max(0.35, radius * 0.21),
-                        Math.Max(0.65, radius * 0.95));
+                        new Vec3(0, -radius * 1.02, 0);
+                    radii = new Vec3(Math.Max(1.6, length * 0.52),
+                        Math.Max(0.8, radius * 0.30),
+                        Math.Max(0.85, radius * 0.95));
                 }
                 else
                 {
