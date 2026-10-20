@@ -12,7 +12,13 @@ namespace PixelCreatures.Core.Export
         {
             public readonly double Size;
             public readonly bool NeedsBacking;
-            public EyeFit(double size, bool needsBacking) { Size = size; NeedsBacking = needsBacking; }
+            public readonly Vec3 WorldOffset;
+            public EyeFit(double size, bool needsBacking, Vec3 worldOffset = default)
+            {
+                Size = size;
+                NeedsBacking = needsBacking;
+                WorldOffset = worldOffset;
+            }
         }
 
         public static EyeFit Evaluate(CreatureAnatomy anatomy, FeatureDef feature)
@@ -26,6 +32,8 @@ namespace PixelCreatures.Core.Export
             Vec3 featureWorld = owner.Point(feature.LocalPosition);
             double nearest = double.PositiveInfinity;
             PrimitiveDef? supportingShape = null;
+            Vec3 nearestSurface = Vec3.Zero;
+            double nearestNormalized = 0;
 
             // Only look on the owning bone: a huge chest shape on a parent bone must not
             // determine the size of an eyeball attached to a small head or eye stalk.
@@ -53,6 +61,8 @@ namespace PixelCreatures.Core.Export
                 if (gap >= nearest) continue;
                 nearest = gap;
                 supportingShape = p;
+                nearestSurface = surface;
+                nearestNormalized = normalized;
             }
 
             if (supportingShape != null && nearest <= Math.Max(1.25, size * 1.4))
@@ -61,7 +71,14 @@ namespace PixelCreatures.Core.Export
                 // height of a 2D eye stamp. Keep the entire 3D socket within the host.
                 double limit = Math.Max(0.7, Math.Min(supportingShape.Radii.Y,
                     supportingShape.Radii.Z) * 0.8);
-                return new EyeFit(Math.Min(size, limit), false);
+                // If a nominal 2D eye stamp floats just outside its host's 3D surface,
+                // translate the whole feature stack together instead of moving only the pupil.
+                // Do not pull eyes deeply out of the skull or snap distant stalk eyes to a head.
+                Vec3 correction = Vec3.Zero;
+                if (nearestNormalized > 1.02 && nearest > 0.12 &&
+                    nearest <= Math.Min(1.25, size * 0.65))
+                    correction = nearestSurface - featureWorld;
+                return new EyeFit(Math.Min(size, limit), false, correction);
             }
 
             // Eye-stalk endpoints (notably arthropods) sometimes have only a skinny cone and
