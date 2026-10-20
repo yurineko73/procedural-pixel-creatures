@@ -128,20 +128,20 @@ namespace PixelCreatures.Core.Export
             Vec3 up = Vec3.Cross(normal, right).NormalizedOr(Vec3.UnitY);
             Func<Vec3, Vec3> localToWorld = p => position + right * p.X + up * p.Y + normal * p.Z;
 
-            // FeatureDef.Size is the nominal full 2D eye-stamp height, not an ellipsoid radius.
-            // The old exporter treated it as a radius (nearly doubling eye height) and let large
-            // eyes exceed the cranium, making sockets/pupils look detached on small heads.
-            double size = Math.Max(0.7, feature.Size);
-            if (feature.Kind == FeatureKind.Eye)
+            PreviewFeatureFit.EyeFit eyeFit = PreviewFeatureFit.Evaluate(anatomy, feature);
+            double size = eyeFit.Size;
+            // Some eye-stalks have no actual eye bulb in the underlying 2D anatomy.
+            // Create one connected backing sphere for the 3D preview rather than allowing
+            // the dark eye socket to float at the end of a narrow stalk.
+            if (eyeFit.NeedsBacking)
             {
-                foreach (PrimitiveDef p in anatomy.Primitives)
-                {
-                    if (p.Kind != PrimKind.Ellipsoid || p.BoneA != feature.Bone ||
-                        !p.Tag.EndsWith(".cranium", StringComparison.Ordinal)) continue;
-                    double headLimit = Math.Min(p.Radii.Y, p.Radii.Z) * 0.8;
-                    size = Math.Min(size, Math.Max(0.7, headLimit));
-                    break;
-                }
+                obj.Append("o feature_").Append(index.ToString(CultureInfo.InvariantCulture)).AppendLine("_backing");
+                obj.AppendLine("usemtl Primary");
+                Vec3 backingCenter = position - normal * (size * 0.35);
+                double backingRadius = size * 0.58;
+                emitter.Ellipsoid(v => backingCenter + v,
+                    new Vec3(backingRadius, backingRadius, backingRadius),
+                    Math.Max(10, sides / 2), Math.Max(6, rings / 2));
             }
             double aspect = DMath.Clamp(feature.Aspect, 0.55, 1.8);
             string prefix = "feature_" + index.ToString(CultureInfo.InvariantCulture) + "_";
