@@ -129,6 +129,9 @@ namespace PixelCreatures.Core.Export
             Func<Vec3, Vec3> localToWorld = p => position + right * p.X + up * p.Y + normal * p.Z;
 
             PreviewFeatureFit.EyeFit eyeFit = PreviewFeatureFit.Evaluate(anatomy, feature);
+            // localToWorld captures 'position' by reference; all eye layers, including highlights,
+            // therefore receive the exact same fitted offset and cannot detach from each other.
+            position += eyeFit.WorldOffset;
             double size = eyeFit.Size;
             // Some eye-stalks have no actual eye bulb in the underlying 2D anatomy.
             // Create one connected backing sphere for the 3D preview rather than allowing
