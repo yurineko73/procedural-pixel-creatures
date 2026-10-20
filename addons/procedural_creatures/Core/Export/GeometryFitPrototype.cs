@@ -69,8 +69,8 @@ namespace PixelCreatures.Core.Export
     /// <summary>
     /// Small deterministic experiment for reducing silhouette mismatch between the original 2D
     /// renderer and a mesh made from the same anatomy primitives. It optimizes only a few semantic
-    /// group transforms with tight bounds. The reported IoU is for a lightweight triangulated
-    /// primitive projection, not the final SDF-exported OBJ; final mesh quality must still be checked.
+    /// group transforms with tight bounds. Optimization uses a lightweight triangulated primitive
+    /// projection; a separate IoU is then measured from the actual exported OBJ for validation.
     /// </summary>
     public static class GeometryFitPrototype
     {
