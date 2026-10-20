@@ -46,6 +46,9 @@ namespace PixelCreatures.Tests
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
             r.Run("export.preview_dental_lip_fit", ctx => PreviewDentalLipFitSmoke(ctx));
+            r.Run("export.preview_visible_mouth_cavity", ctx => PreviewVisibleMouthSmoke(ctx));
+            r.Run("export.preview_ears_embed_in_skull", ctx => PreviewEarRootSmoke(ctx));
+            r.Run("export.preview_arthropod_leg_chain", ctx => PreviewArthropodChainSmoke(ctx));
             r.Run("export.preview_claw_toe_fit", ctx => PreviewClawToeFitSmoke(ctx));
             r.Run("export.preview_fixed_user_seeds", ctx => PreviewFixedUserSeedsSmoke(ctx, registry));
             r.Run("export.preview_ancestor_limb_attachment", ctx => PreviewAncestorAttachmentSmoke(ctx));
@@ -157,6 +160,98 @@ namespace PixelCreatures.Tests
             ctx.True(fusedSkin.BoundaryEdgeCount == 0 && fusedSkin.NonManifoldEdgeCount == 0,
                 "the fused organic skin must be a closed two-manifold surface");
             ctx.True(result.Triangles > 0, "organic union must generate a nonempty surface");
+        }
+
+        private static void PreviewVisibleMouthSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 115);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            Heads.Build(b, new HeadSpec
+            {
+                Name = "head", ParentBone = root, Position = new Vec3(0, 20, 0),
+                Forward = Vec3.UnitX, SkullLength = 11, SkullHeight = 9, SkullWidth = 9,
+                SnoutLength = 8, SnoutRadius = 4, SnoutTaper = 0.78,
+                JawLength = 0.8, JawRadius = 3, JawDepth = 0.8,
+                Teeth = TeethKind.Fangs, EyeCount = 0
+            });
+            var anatomy = b.Build(1);
+            ctx.True(anatomy.Primitives.Any(p => p.Tag == "head.mouthInterior"),
+                "legacy anatomy must still contain the originally hidden mouth cavity");
+            var surface = ImplicitBodyMesher.Build(anatomy);
+            ctx.True(surface.Faces.Any(f => f.Material == MaterialSlot.Mouth),
+                "3D preview must expose a visible dark mouth surface, not merely detached teeth");
+            ctx.True(surface.BoundaryEdgeCount == 0 && surface.NonManifoldEdgeCount == 0,
+                "mouth subtraction should not produce holes or non-manifold skin");
+            string obj = ObjMeshExporter.Export(anatomy, 10, 6).ObjText;
+            ctx.True(obj.Contains("o organic_body_Mouth", StringComparison.Ordinal),
+                "OBJ export must retain the mouth material on the carved inner wall");
+        }
+
+        private static void PreviewEarRootSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("biped", 116);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int head = b.Bone("head", root, new Vec3(0, 12, 0), Quat.Identity, 0, BoneRole.Head);
+            int group = b.Group("head", 0.8);
+            b.Ellipsoid(group, head, Vec3.Zero, new Vec3(5, 5, 4), MaterialSlot.Primary)
+                .Tag = "head.cranium";
+            Ears.Build(b, new EarSpec
+            {
+                Name = "ear", HeadBone = head,
+                Base = new Vec3(0, 4.6, 4.2), Size = 7,
+                Kind = EarKind.Pointed, Width = 0.65
+            });
+            var anatomy = b.Build(1);
+            var fit = new PreviewHeadAttachmentFit(anatomy);
+            var ear = anatomy.Primitives.First(p => p.Tag == "ear.outer");
+            var inner = anatomy.Primitives.First(p => p.Tag == "ear.inner" &&
+                p.Group == ear.Group);
+            Vec3 worldRoot = anatomy.Skeleton.RestWorld(ear.BoneA).Point(ear.LocalA);
+            Vec3 newRoot = fit.Transform(ear, worldRoot);
+            Vec3 shift = newRoot - worldRoot;
+            ctx.True(fit.HasFittedEar(ear.Group) && shift.Length > 0.2,
+                "overhanging ear should move its root into the head surface");
+            ctx.True((fit.Transform(inner, worldRoot) - worldRoot - shift).Length < 1e-8,
+                "inner ear cartilage must receive the exact same displacement as its outer shell");
+            Vec3 local = anatomy.Skeleton.RestWorld(head).InversePoint(newRoot);
+            double normalized = Math.Sqrt(local.X * local.X / 25 +
+                local.Y * local.Y / 25 + local.Z * local.Z / 16);
+            ctx.True(normalized < 1.0,
+                "the corrected ear root should be slightly embedded inside the skull");
+            ctx.True(anatomy.Skeleton.RestWorld(ear.BoneA).Point(ear.LocalA).Equals(worldRoot),
+                "3D ear fitting must not mutate source bones");
+        }
+
+        private static void PreviewArthropodChainSmoke(TestContext ctx)
+        {
+            var b = new AnatomyBuilder("arthropod", 117);
+            int root = b.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int body = b.Group("body", 0.8);
+            b.Ellipsoid(body, root, new Vec3(0, 6, 0),
+                new Vec3(4, 3, 4), MaterialSlot.Primary);
+            int knee = b.Bone("knee", root, new Vec3(2, 4, 3), Quat.Identity, 0, BoneRole.LegLower);
+            int ankle = b.Bone("ankle", knee, new Vec3(2, -2, 3), Quat.Identity, 0, BoneRole.LegMeta);
+            int foot = b.Bone("foot", ankle, new Vec3(0, -2, 3), Quat.Identity, 0, BoneRole.Foot);
+            int group = b.Group("leg0R", 0.4);
+            b.Cone(group, root, new Vec3(0, 5, 3), 0.5, knee, Vec3.Zero, 0.45,
+                MaterialSlot.Primary).Tag = "leg0R.upper";
+            b.Cone(group, knee, Vec3.Zero, 0.45, ankle, Vec3.Zero, 0.38,
+                MaterialSlot.Primary).Tag = "leg0R.lower";
+            b.Cone(group, ankle, Vec3.Zero, 0.38, foot, Vec3.Zero, 0.32,
+                MaterialSlot.Primary).Tag = "leg0R.distal";
+            var anatomy = b.Build(1);
+            var chains = new PreviewSegmentChainFit(anatomy);
+            ctx.True(chains.Chains.Count == 1 && chains.PrimitiveIndices.Count == 3,
+                "arthropod leg must retain all three semantically linked parts");
+            var chain = chains.Chains[0];
+            for (int i = 1; i < chain.Segments.Count; i++)
+                ctx.True(Vec3.Distance(chain.Segments[i - 1].End, chain.Segments[i].Start) < 1e-9,
+                    "successive arthropod limb pieces must share a single continuous joint");
+            ctx.True(!ImplicitBodyMesher.ShouldUnify(anatomy, anatomy.Primitives.Last()),
+                "thin distal arthropod segment must bypass coarse global SDF");
+            string obj = ObjMeshExporter.Export(anatomy, 8, 4).ObjText;
+            ctx.True(obj.Contains("o arthropod_leg_", StringComparison.Ordinal),
+                "3D exporter should emit continuous arthropod leg tubes");
         }
 
         private static void PreviewDentalLipFitSmoke(TestContext ctx)
