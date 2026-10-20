@@ -166,6 +166,8 @@ namespace PixelCreatures.Tests
             ctx.True(!double.IsNaN(fit.FittedMeshMeanIoU) && !double.IsInfinity(fit.FittedMeshMeanIoU) &&
                 fit.FittedMeshMeanIoU >= 0 && fit.FittedMeshMeanIoU <= 1,
                 "Fitted exported-OBJ IoU must be finite and normalized");
+            ctx.True(fit.InitialMeshMeanIoU > 0.05 && fit.FittedMeshMeanIoU > 0.05,
+                "OBJ triangle parsing must overlap the original renderer's silhouette");
             ctx.True(fit.FittedMesh.Vertices > 0 && fit.FittedMesh.Triangles > 0 &&
                 !fit.FittedMesh.ObjText.Contains("NaN", StringComparison.Ordinal) &&
                 !fit.FittedMesh.ObjText.Contains("Infinity", StringComparison.Ordinal),
