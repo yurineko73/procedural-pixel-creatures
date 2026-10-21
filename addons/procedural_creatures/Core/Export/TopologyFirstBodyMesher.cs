@@ -459,15 +459,23 @@ namespace PixelCreatures.Core.Export
                 node.LocalAxes[connectionId] = axis;
             }
 
-            // Closely aligned links must not carve overlapping holes at one joint.
+            // Keep nearby openings disjoint. Fixed-size cutouts overlap at shoulders,
+            // pelvises and multi-limbed joints, producing branched boundary graphs that cannot
+            // be assigned to one bridge per connection.
             for (int i = 0; i < cutouts.Count; i++)
             for (int j = i + 1; j < cutouts.Count; j++)
             {
-                if (Vec3.Dot(cutouts[i].Axis, cutouts[j].Axis) > 0.78)
+                double dot = Math.Max(-1.0, Math.Min(1.0, Vec3.Dot(cutouts[i].Axis, cutouts[j].Axis)));
+                double separation = Math.Acos(dot);
+                double angleA = Math.Acos(Math.Max(-1.0, Math.Min(1.0, cutouts[i].CosAngle)));
+                double angleB = Math.Acos(Math.Max(-1.0, Math.Min(1.0, cutouts[j].CosAngle)));
+                double allowedAngle = separation * 0.42;
+                if (angleA + angleB >= separation - 0.025)
                 {
-                    double smallerAngleCos = Math.Cos(0.34);
-                    cutouts[i].CosAngle = Math.Max(cutouts[i].CosAngle, smallerAngleCos);
-                    cutouts[j].CosAngle = Math.Max(cutouts[j].CosAngle, smallerAngleCos);
+                    angleA = Math.Min(angleA, allowedAngle);
+                    angleB = Math.Min(angleB, allowedAngle);
+                    cutouts[i].CosAngle = Math.Cos(angleA);
+                    cutouts[j].CosAngle = Math.Cos(angleB);
                 }
             }
 
