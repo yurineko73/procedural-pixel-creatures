@@ -8,14 +8,14 @@
 
 This path deliberately does **not** use `ImplicitBodyMesher`, SDF union, marching tetrahedra, or `GeometryFitPrototype` as its final geometry source. It also does not turn the captured depth buffers into a voxel volume as `MultiviewReconstructor` does.
 
-Instead, it builds an indexed surface for each spatially connected component of a semantic anatomy group, then adjusts those existing vertices against the original 2D renderer's multi-view silhouette and front-depth observations. The topology is created before fitting and remains fixed during fitting.
+Instead, it creates an indexed surface for each original ellipsoid or tapered segment independently, preserving the source primitive's center, orientation, endpoints, and radii. It then allows only bounded vertex adjustments against the original 2D renderer's multi-view silhouette and front-depth observations. The topology is created before fitting and remains fixed during fitting.
 
 ## Current algorithm
 
 1. Capture the original renderer at eight yaw directions by default.
 2. Sample the surface of each eligible source ellipsoid or tapered segment. Samples are control data only; they are not emitted as the final skin mesh.
-3. Split each existing anatomy group into spatially connected components using primitive sample bounds. This prevents left and right limbs in a shared legacy group from being wrapped into one surface.
-4. Build a regular indexed radial surface for each component. It is a fixed triangle topology with welded vertices, not a voxel/SDF union.
+3. Build a regular indexed surface directly from each source ellipsoid or tapered segment, retaining its exact source transform and dimensions. Different source primitives are never combined into a bounding-volume envelope.
+4. Fit these fixed triangle surfaces against multi-view constraints, with a strict total-displacement limit. If fitting lowers the silhouette score materially, discard the fit and restore the source surfaces.
 5. Relax surface vertices using two kinds of evidence:
    - if a vertex projects outside the original silhouette, move its projection toward the nearest nearby visible pixel while preserving view depth;
    - if a vertex is in front of the original front-depth sample for the same semantic group, move it slightly backward.
@@ -45,7 +45,7 @@ The test checks deterministic output, non-empty indexed topology, restored facia
 
 ## Known limitations — do not overstate this prototype
 
-- A radial surface is star-shaped around its component center. It can fill concavities, soften sharp appendages, or make a snout/jaw region too round.
+- The mesh still consists of separate overlapping primitive shells; this avoids the radial-envelope blobs but does not yet create a watertight, continuous skin. Intersections and seams can remain.
 - Connected components are based on source primitive bounds. They are not yet authored anatomical templates with explicit shared boundary loops.
 - Separate component surfaces can still overlap or show seams. This prototype does not yet provide a watertight, continuous whole-creature skin.
 - The mouth interior and teeth are still restored as detail geometry; the new path does not yet create a true articulated jaw or a topology-aware oral cavity.
@@ -57,10 +57,10 @@ The test checks deterministic output, non-empty indexed topology, restored facia
 
 Keep this as an experiment until all of the following are checked against the same Body Seed:
 
-1. Compare the old SDF skin, the new radial topology before fitting, and the fitted topology in the same front/side/rear views.
+1. Compare the old SDF skin, the independent source-primitive surfaces before fitting, and the bounded fitted result in the same front/side/rear views.
 2. Confirm that head, muzzle, mouth, eyes, feet, and limbs look structurally better—not merely that the silhouette score increases.
 3. Check mesh boundaries, self-intersections, and part attachment in Blender or another mesh inspector.
-4. If the radial topology loses the mouth/jaw concavity or produces a blob-like head, do not add more smoothing or reintroduce SDF union as the fix. Replace the radial head patch with an authored head/jaw template or stop this route.
+4. If separate source primitives still look disconnected or faceted, do not merge them into a group-level radial envelope. The next valid step is explicit shared anatomical boundary loops or authored head/jaw topology.
 5. Run the full repository check workflow before treating the branch as build-verified.
 
 This experiment is intentionally isolated. It does not change the original 2D generator or replace the existing default preview/export path.
