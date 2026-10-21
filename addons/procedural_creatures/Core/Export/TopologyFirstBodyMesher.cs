@@ -471,30 +471,15 @@ namespace PixelCreatures.Core.Export
                 }
             }
 
-            var localPoints = new List<Vec3>();
-            var units = new List<Vec3>();
-            int AddPoint(Vec3 unit)
-            {
-                units.Add(unit);
+            // An icosphere has near-uniform triangles in every direction. The previous
+            // latitude/longitude grid was too coarse around arbitrary attachment axes: a
+            // cutout could collapse into a few triangles and fail to form a stitchable loop.
+            List<Vec3> units = BuildUnitIcosphere(3, out List<LocalTriangle> sphereFaces);
+            var localPoints = new List<Vec3>(units.Count);
+            foreach (Vec3 unit in units)
                 localPoints.Add(new Vec3(unit.X * node.Radii.X, unit.Y * node.Radii.Y, unit.Z * node.Radii.Z));
-                return localPoints.Count - 1;
-            }
 
-            int bottom = AddPoint(new Vec3(0, -1, 0));
-            var rings = new int[SurfaceRings + 1, SurfaceSides];
-            for (int j = 1; j < SurfaceRings; j++)
-            {
-                double latitude = -Math.PI * 0.5 + Math.PI * j / SurfaceRings;
-                double h = Math.Cos(latitude), y = Math.Sin(latitude);
-                for (int i = 0; i < SurfaceSides; i++)
-                {
-                    double angle = 2 * Math.PI * i / SurfaceSides;
-                    rings[j, i] = AddPoint(new Vec3(h * Math.Cos(angle), y, h * Math.Sin(angle)));
-                }
-            }
-            int top = AddPoint(new Vec3(0, 1, 0));
-
-            var candidates = new List<LocalTriangle>();
+            var candidates = new List<LocalTriangle>(sphereFaces.Count);
             void AddCandidate(int a, int b, int c)
             {
                 Vec3 wa = node.WorldPoint(localPoints[a]);
@@ -508,19 +493,8 @@ namespace PixelCreatures.Core.Export
                 candidates.Add(new LocalTriangle(a, b, c));
             }
 
-            for (int i = 0; i < SurfaceSides; i++)
-            {
-                int next = (i + 1) % SurfaceSides;
-                AddCandidate(bottom, rings[1, i], rings[1, next]);
-                for (int j = 1; j < SurfaceRings - 1; j++)
-                {
-                    int a = rings[j, i], b = rings[j, next];
-                    int c = rings[j + 1, i], d = rings[j + 1, next];
-                    AddCandidate(a, c, b);
-                    AddCandidate(b, c, d);
-                }
-                AddCandidate(rings[SurfaceRings - 1, i], top, rings[SurfaceRings - 1, next]);
-            }
+            foreach (LocalTriangle face in sphereFaces)
+                AddCandidate(face.A, face.B, face.C);
 
             var kept = new List<LocalTriangle>(candidates.Count);
             foreach (LocalTriangle face in candidates)
@@ -553,6 +527,65 @@ namespace PixelCreatures.Core.Export
                     node.VertexIds[face.C], node.Material));
             }
             AssignBoundaryLoops(node, connections);
+        }
+
+
+        private static List<Vec3> BuildUnitIcosphere(int subdivisions, out List<LocalTriangle> faces)
+        {
+            double t = (1.0 + Math.Sqrt(5.0)) * 0.5;
+            var vertices = new List<Vec3>
+            {
+                new Vec3(-1, t, 0), new Vec3(1, t, 0),
+                new Vec3(-1, -t, 0), new Vec3(1, -t, 0),
+                new Vec3(0, -1, t), new Vec3(0, 1, t),
+                new Vec3(0, -1, -t), new Vec3(0, 1, -t),
+                new Vec3(t, 0, -1), new Vec3(t, 0, 1),
+                new Vec3(-t, 0, -1), new Vec3(-t, 0, 1)
+            };
+            for (int i = 0; i < vertices.Count; i++)
+                vertices[i] = vertices[i].NormalizedOr(Vec3.UnitY);
+
+            faces = new List<LocalTriangle>
+            {
+                new LocalTriangle(0,11,5), new LocalTriangle(0,5,1),
+                new LocalTriangle(0,1,7), new LocalTriangle(0,7,10),
+                new LocalTriangle(0,10,11), new LocalTriangle(1,5,9),
+                new LocalTriangle(5,11,4), new LocalTriangle(11,10,2),
+                new LocalTriangle(10,7,6), new LocalTriangle(7,1,8),
+                new LocalTriangle(3,9,4), new LocalTriangle(3,4,2),
+                new LocalTriangle(3,2,6), new LocalTriangle(3,6,8),
+                new LocalTriangle(3,8,9), new LocalTriangle(4,9,5),
+                new LocalTriangle(2,4,11), new LocalTriangle(6,2,10),
+                new LocalTriangle(8,6,7), new LocalTriangle(9,8,1)
+            };
+
+            for (int level = 0; level < subdivisions; level++)
+            {
+                var midpointCache = new Dictionary<long, int>();
+                int Midpoint(int a, int b)
+                {
+                    long key = EdgeKey(a, b);
+                    if (midpointCache.TryGetValue(key, out int cached)) return cached;
+                    int index = vertices.Count;
+                    vertices.Add((vertices[a] + vertices[b]).NormalizedOr(Vec3.UnitY));
+                    midpointCache.Add(key, index);
+                    return index;
+                }
+
+                var refined = new List<LocalTriangle>(faces.Count * 4);
+                foreach (LocalTriangle face in faces)
+                {
+                    int ab = Midpoint(face.A, face.B);
+                    int bc = Midpoint(face.B, face.C);
+                    int ca = Midpoint(face.C, face.A);
+                    refined.Add(new LocalTriangle(face.A, ab, ca));
+                    refined.Add(new LocalTriangle(face.B, bc, ab));
+                    refined.Add(new LocalTriangle(face.C, ca, bc));
+                    refined.Add(new LocalTriangle(ab, bc, ca));
+                }
+                faces = refined;
+            }
+            return vertices;
         }
 
         private static double RadiusAlong(Vec3 radii, Vec3 direction)
