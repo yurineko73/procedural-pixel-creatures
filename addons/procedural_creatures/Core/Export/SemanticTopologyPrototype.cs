@@ -114,9 +114,24 @@ namespace PixelCreatures.Core.Export
             MultiviewResult templateMesh = ToMetricMesh(patches);
             double[] templateScores = MultiviewSilhouetteMetrics.IntersectionOverUnion(templateMesh, captures);
 
+            var templatePositions = new List<Vec3[]>();
+            foreach (Patch patch in patches) templatePositions.Add(patch.Vertices.ToArray());
+
             int relaxed = RelaxVertices(patches, views, options);
             MultiviewResult fittedMesh = ToMetricMesh(patches);
             double[] fittedScores = MultiviewSilhouetteMetrics.IntersectionOverUnion(fittedMesh, captures);
+
+            // Silhouette fitting is allowed to refine the source primitives, never to degrade them.
+            // If the aggregate metric regresses, discard the fit and retain the exact source surfaces.
+            if (Mean(fittedScores) < Mean(templateScores) - 0.002 ||
+                Worst(fittedScores) < Worst(templateScores) - 0.02)
+            {
+                for (int i = 0; i < patches.Count; i++)
+                    patches[i].Vertices.Clear();
+                    patches[i].Vertices.AddRange(templatePositions[i]);
+                relaxed = 0;
+                fittedScores = templateScores;
+            }
 
             ObjMeshResult mesh = EmitObj(model, patches, corePrimitiveIndices, captures, options.UnitsPerPixel);
             return new SemanticTopologyResult(mesh, captures, patches.Count, relaxed,
