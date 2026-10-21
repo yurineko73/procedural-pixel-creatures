@@ -347,3 +347,14 @@ The experiment now scores candidate adjustments using the actual OBJ silhouette,
 - Added the CoreHarness test `export.semantic_topology_uses_independent_final_mesh` and `docs/SEMANTIC_TOPOLOGY_PROTOTYPE.md`.
 - Each body face samples the original renderer's exact palette index for approximate pixel-color preservation, but this is not UV texture baking. Known limitations: source primitive shells can overlap or show seams; true shared anatomical boundary loops, UV texture baking, Skeleton3D skinning, and animation are not implemented.
 - **Do not merge or make this the default based on the code change alone.** Run the source audit, CoreHarness and full Godot checks, then visually compare the same seed. The radial-envelope implementation has been removed because it produced large blobs and a severe silhouette regression; this primitive-surface revision still requires visual acceptance.
+
+
+### Visual regression: radial-envelope topology rejected (2026-10-21)
+
+The first user screenshot set showed large disk/blob-like body regions, severe view-dependent shape loss, and visible disconnection/overlap. Reported screenshot metrics for the biped sample were: old SDF body IoU mean/worst **83.0% / 79.4%**, radial topology before fitting **57.6% / 53.8%**, and after fitting **58.2% / 54.8%**. This confirmed the failure was in the group-level radial envelope, not a shading issue.
+
+- Removed group-level radial-envelope generation rather than trying additional smoothing.
+- Replaced it with one indexed mesh per source ellipsoid/tapered segment, preserving the authored transform, endpoints, and radii.
+- Limited total vertex movement to 0.5 source units and added a guard that restores the exact source primitive surfaces when the fitted silhouette materially regresses.
+- Added regression assertions that multiple source primitives remain separate mesh objects and that fitting cannot materially reduce the silhouette scores.
+- **Next required step:** refresh the experiment branch, rerun the same Body Seed from multiple angles, and report the new IoU and screenshots. This revision is not yet built or visually verified; source primitive shells may still overlap or leave seams.
