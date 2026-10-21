@@ -377,6 +377,7 @@ namespace PixelCreatures.Core.Export
             {
                 if (Vec3.Cross(b - a, c - a).LengthSquared < 1e-12) return;
                 int ia = Vertex(a), ib = Vertex(b), ic = Vertex(c);
+                _obj.AppendLine("s off");
                 Face(ia, ib, ic);
                 if (twoSided)
                 {
@@ -403,6 +404,8 @@ namespace PixelCreatures.Core.Export
 
                     _obj.Append("o ").Append(objectPrefix).Append('_').AppendLine(material.ToString());
                     _obj.Append("usemtl ").AppendLine(material.ToString());
+                    _obj.AppendLine("s 1");
+                    _obj.AppendLine("s 1");
                     foreach (var face in mesh.Faces)
                         if (face.Material == material)
                             Face(globalIndices[face.A], globalIndices[face.B], globalIndices[face.C]);
@@ -449,6 +452,7 @@ namespace PixelCreatures.Core.Export
                     }
                 }
                 int top = Vertex(transform(new Vec3(0, radii.Y, 0)));
+                _obj.AppendLine("s 1");
                 for (int i = 0; i < sides; i++)
                 {
                     int next = (i + 1) % sides;
@@ -493,6 +497,7 @@ namespace PixelCreatures.Core.Export
                     capRingA[i] = Vertex(pointA);
                     capRingB[i] = Vertex(pointB);
                 }
+                _obj.AppendLine("s 1");
                 for (int i = 0; i < sides; i++)
                 {
                     int n = (i + 1) % sides;
