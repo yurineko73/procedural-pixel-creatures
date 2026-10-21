@@ -329,3 +329,24 @@ This is an intentionally different construction route, not a parameter pass on t
 6. Wings, horns, teeth, eyes and equipment remain separate semantic detail modules in this first body-topology prototype. They are not evidence that those modules have passed visual acceptance.
 
 The experiment deliberately prioritizes a falsifiable topology test over expanding feature coverage. If the controlled test or the first biped render fails, stop and repair the explicit patch/loop algorithm before adding more geometry heuristics.
+
+
+### 2026-10-21 follow-up — first visual review rejected; mesh patch revision pending validation
+
+The first Godot preview for the topology-first route was visually unacceptable. The captured diagnostic values were:
+
+| Seed / creature | Boundary edges | Non-manifold edges | Components | Failed connections |
+|---|---:|---:|---:|---:|
+| 12345 (biped, orange) | 252 | 74 | 5 | 4 |
+| 14960774727119815275 (biped, green) | 162 | 44 | 6 | 5 |
+
+The result showed obvious patch seams and at least one disconnected foot. This version is **rejected**; do not merge it or treat the route as successful.
+
+Changes added after that review, still awaiting a real build and Godot rerun:
+
+- Replaced the low-resolution latitude/longitude patch with a uniformly tessellated level-3 icosphere (642 vertices / 1280 triangles per source patch). The previous mesh had poor directional resolution around arbitrary joint axes, so openings often collapsed into irregular boundary fragments.
+- Replaced the fixed cutout-angle clamp with pairwise angle reduction so nearby joint openings are less likely to overlap into branched boundary graphs.
+- Enabled OBJ smoothing groups for mesh faces, while retaining flat shading for standalone triangle details. This addresses the visibly faceted triangle shading; it does not substitute for valid topology.
+- Extended the controlled regression to assert the exported smooth-shading group.
+
+**Next acceptance gate:** rebuild and run the controlled CoreHarness test first. Then regenerate the two exact seeds above and confirm zero boundary edges, zero non-manifold edges, one connected component and zero failed connections before evaluating the appearance. If the test still fails, do not tune the screenshot by eye: inspect the extracted boundary loops and zipper bridge edge-use counts, then repair or replace that stage. The visual screenshot alone is not enough to claim the new revision is fixed.
