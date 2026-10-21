@@ -100,3 +100,21 @@ Please reproduce:
 - arthropod Body `14734810077418951438`, Equipment `9423138326607858554` — leg joints continuous
 
 This is code committed but **not verified in a running Godot scene or .NET test harness**. If tests fail or the opening appears behind the jaw, fix placement rather than treating the new geometry as accepted.
+
+
+## Experimental topology-first body mode
+
+The branch \`experiment/topology-first-mesh\` adds an opt-in checkbox in the sidebar:
+
+**显式拓扑主身体（实验 / 不使用 SDF）**
+
+Use this as a side-by-side experiment, not as the default exporter.
+
+- Disable equipment for the cleanest comparison.
+- Keep the body seed fixed, then inspect front, side and rear views.
+- The mode builds explicit ellipsoid patches, cuts attachment boundary loops, and stitches them with shared vertex indices.
+- It does not call the legacy SDF/voxel body mesher or multiview depth reconstruction.
+- The status panel reports boundary edges, non-manifold edges, connected components and failed connections. A visually plausible result is not accepted if these diagnostics show open or disconnected body topology.
+- The first implementation focuses on the structural body graph. Wings, horns, teeth, eyes and gear are still separate detail modules.
+
+The experiment is not visually validated until the CoreHarness and Godot 4.7.1 .NET project are rebuilt and the same seeds are inspected from multiple angles.
