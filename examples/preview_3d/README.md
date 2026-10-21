@@ -118,3 +118,10 @@ Use this as a side-by-side experiment, not as the default exporter.
 - The first implementation focuses on the structural body graph. Wings, horns, teeth, eyes and gear are still separate detail modules.
 
 The experiment is not visually validated until the CoreHarness and Godot 4.7.1 .NET project are rebuilt and the same seeds are inspected from multiple angles.
+
+
+### Visual-review correction
+
+The first topology-first preview failed: two tested biped seeds showed 162–252 boundary edges, 44–74 non-manifold edges, 5–6 connected components and 4–5 failed connections. Do not treat that output as accepted.
+
+The current revision uses uniform icosphere patches instead of a coarse latitude/longitude sphere and enables OBJ smooth-shading groups. These are algorithm changes, not a verified fix. Rebuild the harness and rerender the same seeds before relying on the mode.
