@@ -340,7 +340,7 @@ namespace PixelCreatures.Examples
             column.AddChild(_topologyToggle);
             var topologyHint = new Label
             {
-                Text = "独立拓扑实验：每个语义分组生成索引曲面，再按多视角约束移动顶点。当前仍可能有部件交叠、凹陷丢失或接缝，不代表已达到最终质量。",
+                Text = "独立拓扑实验：每个原始椭球/锥段分别生成索引网格，限制顶点调整幅度，避免跨部件包络成大块。仍可能存在部件交叠和接缝，尚未通过视觉验收。",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             };
             topologyHint.AddThemeFontSizeOverride("font_size", 11);
@@ -700,7 +700,7 @@ namespace PixelCreatures.Examples
                         $"\n旧SDF主体轮廓IoU：平均 {result.BaselineMeanIoU:P1} / 最差 {result.BaselineWorstIoU:P1}" +
                         $"\n新拓扑初始IoU：平均 {result.TemplateMeanIoU:P1} / 最差 {result.TemplateWorstIoU:P1}" +
                         $"\n约束后IoU：平均 {result.FittedMeanIoU:P1} / 最差 {result.FittedWorstIoU:P1}" +
-                        $"\n语义网格分组：{result.RegionCount}，调整顶点：{result.RelaxedVertices:N0}";
+                        $"\n独立网格部件：{result.RegionCount}，调整顶点：{result.RelaxedVertices:N0}";
                 }
                 else
                 {
