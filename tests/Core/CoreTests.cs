@@ -205,8 +205,8 @@ namespace PixelCreatures.Tests
                 LongitudeSegments = 16,
                 RelaxationPasses = 1,
                 SilhouetteSearchRadius = 2,
-                SampleSides = 12,
-                SampleRings = 6,
+                MaxMovePerPass = 0.15,
+                MaxTotalMove = 0.50,
                 UnitsPerPixel = 0.04,
             };
             SemanticTopologyResult first = SemanticTopologyPrototype.Build(model, options);
