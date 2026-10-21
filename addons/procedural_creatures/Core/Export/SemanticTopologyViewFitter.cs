@@ -31,6 +31,8 @@ namespace PixelCreatures.Core.Export
         private static int RelaxVertices(List<Patch> patches, ViewConstraint[] views, SemanticTopologyOptions options)
         {
             int moved = 0;
+            var originalPositions = new Dictionary<Patch, Vec3[]>();
+            foreach (Patch patch in patches) originalPositions[patch] = patch.Vertices.ToArray();
             for (int pass = 0; pass < options.RelaxationPasses; pass++)
             {
                 foreach (Patch patch in patches)
@@ -76,7 +78,14 @@ namespace PixelCreatures.Core.Export
                         if (length > options.MaxMovePerPass)
                             correction = correction * (options.MaxMovePerPass / length);
                         if (correction.LengthSquared < 1e-8) continue;
-                        patch.Vertices[vertexIndex] = point + correction;
+                        Vec3 candidate = point + correction;
+                        Vec3 totalDisplacement = candidate - originalPositions[patch][vertexIndex];
+                        double totalLength = totalDisplacement.Length;
+                        if (totalLength > options.MaxTotalMove)
+                            candidate = originalPositions[patch][vertexIndex] +
+                                totalDisplacement * (options.MaxTotalMove / totalLength);
+                        if ((candidate - point).LengthSquared < 1e-8) continue;
+                        patch.Vertices[vertexIndex] = candidate;
                         moved++;
                     }
                 }
