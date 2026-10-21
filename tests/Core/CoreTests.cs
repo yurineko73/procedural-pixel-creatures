@@ -43,6 +43,7 @@ namespace PixelCreatures.Tests
             r.Run("export.obj_static_all_families", ctx => ObjExportSmoke(ctx, registry));
             r.Run("export.preview_reported_seed_regressions", ctx => PreviewScreenshotSeedsSmoke(ctx, registry));
             r.Run("export.obj_unifies_organic_primitives", ctx => ObjOrganicUnion(ctx));
+            r.Run("export.topology_first_body_stitches_shared_loops", ctx => TopologyFirstBodySmoke(ctx));
             r.Run("export.obj_two_sided_triangle_normals", ctx => ObjTwoSidedTriangleNormals(ctx));
             r.Run("export.preview_attached_claws_and_teeth", ctx => PreviewAttachmentSmoke(ctx));
             r.Run("export.preview_dental_lip_fit", ctx => PreviewDentalLipFitSmoke(ctx));
@@ -163,6 +164,45 @@ namespace PixelCreatures.Tests
             ctx.True(fusedSkin.BoundaryEdgeCount == 0 && fusedSkin.NonManifoldEdgeCount == 0,
                 "the fused organic skin must be a closed two-manifold surface");
             ctx.True(result.Triangles > 0, "organic union must generate a nonempty surface");
+        }
+
+
+        private static void TopologyFirstBodySmoke(TestContext ctx)
+        {
+            var builder = new AnatomyBuilder("topology_first_test", 1);
+            int root = builder.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
+            int limb = builder.Bone("limb", root, new Vec3(5, 0, 0), Quat.Identity, 5, BoneRole.Leg, 1);
+            int body = builder.Group("body", 1.0);
+            builder.Ellipsoid(body, root, Vec3.Zero, new Vec3(4, 4, 4), MaterialSlot.Primary).Tag = "body.core";
+            builder.Ellipsoid(body, limb, Vec3.Zero, new Vec3(1.2, 1.2, 1.2), MaterialSlot.Primary).Tag = "limb.joint";
+            builder.Cone(body, root, new Vec3(3.2, 0, 0), 0.9,
+                limb, new Vec3(-0.4, 0, 0), 0.6, MaterialSlot.Primary).Tag = "limb.segment";
+
+            var anatomy = builder.Build(1);
+            var mesh = TopologyFirstBodyMesher.Build(anatomy);
+            ctx.True(mesh.PrimitiveIndices.Contains(0) && mesh.PrimitiveIndices.Contains(1) &&
+                mesh.PrimitiveIndices.Contains(2),
+                "the topology-first mesh must consume both source skin patches and the source segment");
+            ctx.True(mesh.Vertices.Count > 0 && mesh.Faces.Count > 0,
+                "the explicit patch mesh must contain vertices and faces");
+            ctx.True(mesh.FailedConnections == 0,
+                "the explicit source segment should find a boundary loop on both end patches");
+            ctx.True(mesh.BoundaryEdgeCount == 0 && mesh.NonManifoldEdgeCount == 0,
+                "stitched patch boundaries should form a closed two-manifold mesh");
+            ctx.True(mesh.ConnectedComponentCount == 1,
+                "the torso and limb patches should become one connected surface");
+
+            ObjMeshResult exported = ObjMeshExporter.Export(anatomy, 12, 6, topologyFirst: true);
+            ctx.True(exported.ObjText.Contains("o topology_body_Primary", StringComparison.Ordinal),
+                "the preview exporter should expose the explicit topology body");
+            ctx.True(!exported.ObjText.Contains("o organic_body_", StringComparison.Ordinal),
+                "the topology-first route must not invoke the legacy SDF body exporter");
+            ctx.True(!exported.ObjText.Contains("o primitive_0", StringComparison.Ordinal) &&
+                !exported.ObjText.Contains("o primitive_1", StringComparison.Ordinal) &&
+                !exported.ObjText.Contains("o primitive_2", StringComparison.Ordinal),
+                "consumed source skin and connector primitives must not reappear as independent shells");
+            ctx.True(exported.MethodSummary.Contains("显式拓扑", StringComparison.Ordinal),
+                "the exported preview should identify the topology-first algorithm");
         }
 
         private static void PreviewVisibleMouthSmoke(TestContext ctx)
