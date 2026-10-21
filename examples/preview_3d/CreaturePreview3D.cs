@@ -686,8 +686,8 @@ namespace PixelCreatures.Examples
                         LongitudeSegments = 36,
                         RelaxationPasses = 2,
                         SilhouetteSearchRadius = 3,
-                        SampleSides = 24,
-                        SampleRings = 12,
+                        MaxMovePerPass = 0.15,
+                        MaxTotalMove = 0.50,
                         UnitsPerPixel = PreviewUnitsPerPixel,
                     });
                     SetReference(result.ReferenceViews[0], model);
