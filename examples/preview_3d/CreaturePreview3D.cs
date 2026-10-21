@@ -326,7 +326,7 @@ namespace PixelCreatures.Examples
             {
                 Text = "语义拓扑网格（实验 / 不含装备）",
                 ButtonPressed = false,
-                TooltipText = "按原始语义部件生成固定索引曲面，再用原版2D多视角轮廓和深度约束调整顶点；最终网格不来自SDF/体素并集（旧SDF仅用于指标对照）。",
+                TooltipText = "保留每个原始椭球/锥段的独立索引网格，再用原版2D多视角轮廓和深度约束进行小幅调整；最终网格不来自SDF/体素并集（旧SDF仅用于指标对照）。",
             };
             _topologyToggle.Toggled += enabled =>
             {
