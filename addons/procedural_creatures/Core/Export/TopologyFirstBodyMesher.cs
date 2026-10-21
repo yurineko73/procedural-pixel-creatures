@@ -77,6 +77,17 @@ namespace PixelCreatures.Core.Export
                 Vec3 boneLocal = BoneWorld.InversePoint(worldPoint) - LocalCenter;
                 return LocalRotation.Conjugate.Rotate(boneLocal).NormalizedOr(Vec3.UnitX);
             }
+
+            public double NormalizedDistanceTo(Vec3 worldPoint)
+            {
+                Vec3 local;
+                if (IsFallback) local = LocalRotation.Conjugate.Rotate(worldPoint - Center);
+                else local = LocalRotation.Conjugate.Rotate(BoneWorld.InversePoint(worldPoint) - LocalCenter);
+                double x = local.X / Math.Max(0.1, Radii.X);
+                double y = local.Y / Math.Max(0.1, Radii.Y);
+                double z = local.Z / Math.Max(0.1, Radii.Z);
+                return Math.Sqrt(x * x + y * y + z * z);
+            }
         }
 
         private sealed class Connection
@@ -214,7 +225,21 @@ namespace PixelCreatures.Core.Export
                 Vec3 b = anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB);
                 int nodeA = FindOrCreateEndpoint(nodes, anatomy, p.BoneA, a, p.RadiusA, p.Material);
                 int nodeB = FindOrCreateEndpoint(nodes, anatomy, p.BoneB, b, p.RadiusB, p.Material);
-                if (nodeA == nodeB) continue;
+                if (nodeA == nodeB)
+                {
+                    Node host = nodes[nodeA];
+                    bool outsideA = host.NormalizedDistanceTo(a) > 0.82;
+                    bool outsideB = host.NormalizedDistanceTo(b) > 0.82;
+                    double segmentLength = (b - a).Length;
+                    // A long snout/neck segment can have both endpoints assigned to the same skull
+                    // patch by proximity alone. Preserve it when it actually reaches outside the
+                    // host; discard only a segment wholly buried inside the enclosing patch.
+                    if (segmentLength <= Math.Max(0.5, Math.Max(p.RadiusA, p.RadiusB) * 0.85) ||
+                        (!outsideA && !outsideB)) continue;
+                    if (outsideA) nodeA = CreateFallbackNode(nodes, p.BoneA, a, p.RadiusA, p.Material);
+                    if (outsideB) nodeB = CreateFallbackNode(nodes, p.BoneB, b, p.RadiusB, p.Material);
+                    if (nodeA == nodeB) continue;
+                }
                 AddConnection(nodes, connections, pairToConnection, nodeA, nodeB,
                     a, b, p.RadiusA, p.RadiusB, p.Material, i, true);
             }
@@ -340,7 +365,12 @@ namespace PixelCreatures.Core.Export
                 }
             }
             if (best >= 0) return best;
+            return CreateFallbackNode(nodes, boneIndex, worldPoint, radius, material);
+        }
 
+        private static int CreateFallbackNode(List<Node> nodes, int boneIndex,
+            Vec3 worldPoint, double radius, MaterialSlot material)
+        {
             foreach (Node node in nodes)
             {
                 if (!node.IsFallback || node.BoneIndex != boneIndex) continue;
