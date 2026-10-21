@@ -696,7 +696,7 @@ namespace PixelCreatures.Examples
                     vertexCount = result.Mesh.Vertices;
                     triangleCount = result.Mesh.Triangles;
                     reconstructionNote =
-                        $"\n方法：语义分组径向拓扑 + 8视角顶点约束（不使用SDF/体素并集）" +
+                        $"\n方法：原始椭球/锥段独立索引网格 + 8视角有限顶点约束（不使用SDF/体素并集）" +
                         $"\n旧SDF主体轮廓IoU：平均 {result.BaselineMeanIoU:P1} / 最差 {result.BaselineWorstIoU:P1}" +
                         $"\n新拓扑初始IoU：平均 {result.TemplateMeanIoU:P1} / 最差 {result.TemplateWorstIoU:P1}" +
                         $"\n约束后IoU：平均 {result.FittedMeanIoU:P1} / 最差 {result.FittedWorstIoU:P1}" +
