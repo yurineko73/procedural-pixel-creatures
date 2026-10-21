@@ -58,8 +58,7 @@ namespace PixelCreatures.Core.Export
     }
 
     /// <summary>
-    /// A separate mesh construction path: semantic primitive samples seed a regular indexed
-    /// indexed surface for each source anatomy primitive. Vertex positions are then constrained
+    /// A separate mesh construction path: each source anatomy primitive becomes its own indexed surface. Vertex positions are then constrained
     /// by multi-view raster observations. SDF output is used only as a comparison metric, not as final geometry.
     /// </summary>
     public static partial class SemanticTopologyPrototype
@@ -127,8 +126,10 @@ namespace PixelCreatures.Core.Export
                 Worst(fittedScores) < Worst(templateScores) - 0.02)
             {
                 for (int i = 0; i < patches.Count; i++)
+                {
                     patches[i].Vertices.Clear();
                     patches[i].Vertices.AddRange(templatePositions[i]);
+                }
                 relaxed = 0;
                 fittedScores = templateScores;
             }
