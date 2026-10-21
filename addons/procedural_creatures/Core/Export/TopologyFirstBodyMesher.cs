@@ -12,8 +12,7 @@ namespace PixelCreatures.Core.Export
 {
     public static class TopologyFirstBodyMesher
     {
-        private const int SurfaceSides = 24;
-        private const int SurfaceRings = 14;
+        private const int SphereSubdivisions = 3;
         private const int BridgeSteps = 3;
 
         public sealed class Face
@@ -482,7 +481,7 @@ namespace PixelCreatures.Core.Export
             // An icosphere has near-uniform triangles in every direction. The previous
             // latitude/longitude grid was too coarse around arbitrary attachment axes: a
             // cutout could collapse into a few triangles and fail to form a stitchable loop.
-            List<Vec3> units = BuildUnitIcosphere(3, out List<LocalTriangle> sphereFaces);
+            List<Vec3> units = BuildUnitIcosphere(SphereSubdivisions, out List<LocalTriangle> sphereFaces);
             var localPoints = new List<Vec3>(units.Count);
             foreach (Vec3 unit in units)
                 localPoints.Add(new Vec3(unit.X * node.Radii.X, unit.Y * node.Radii.Y, unit.Z * node.Radii.Z));
