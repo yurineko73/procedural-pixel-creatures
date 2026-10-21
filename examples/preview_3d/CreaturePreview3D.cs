@@ -37,6 +37,7 @@ namespace PixelCreatures.Examples
         private LineEdit _gearSeedInput = null!;
         private Label _gearSeedSummary = null!;
         private CheckBox _equipmentToggle = null!;
+        private CheckBox _topologyFirstToggle = null!;
         private EquipmentSeedSet _equipmentSeeds = EquipmentSeedSet.FromMaster(54321UL);
         private ulong _masterGearSeed = 54321UL;
         private ulong _gearColorSeed = StableHash.Derive(54321UL, "equipment.colors");
@@ -250,6 +251,24 @@ namespace PixelCreatures.Examples
             _equipmentToggle = new CheckBox { Text = "启用装备", ButtonPressed = true, FocusMode = Control.FocusModeEnum.None };
             _equipmentToggle.Toggled += _ => GeneratePreview();
             column.AddChild(_equipmentToggle);
+
+            _topologyFirstToggle = new CheckBox
+            {
+                Text = "显式拓扑主身体（实验 / 不使用 SDF）",
+                ButtonPressed = false,
+                FocusMode = Control.FocusModeEnum.None,
+                TooltipText = "以显式曲面补片和共享边界环连接身体，不调用 SDF、体素或多视角深度重建。"
+            };
+            _topologyFirstToggle.Toggled += _ => GeneratePreview();
+            column.AddChild(_topologyFirstToggle);
+            var topologyHint = new Label
+            {
+                Text = "新路线：先生成曲面补片，再切出连接环并缝合。仅作为对照实验；查看下方拓扑诊断，失败连接不会强行开洞。",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            };
+            topologyHint.AddThemeFontSizeOverride("font_size", 11);
+            topologyHint.AddThemeColorOverride("font_color", new Color(0.63f, 0.67f, 0.73f));
+            column.AddChild(topologyHint);
 
             column.AddChild(FieldLabel("装备风格"));
             _styleSelector = new OptionButton { CustomMinimumSize = new Vector2(0, 34), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
@@ -494,7 +513,7 @@ namespace PixelCreatures.Examples
 
         private void GeneratePreview()
         {
-            if (_familySelector == null || _styleSelector == null || _equipmentToggle == null) return;
+            if (_familySelector == null || _styleSelector == null || _equipmentToggle == null || _topologyFirstToggle == null) return;
             try
             {
                 EnsureStyleCompatibility();
@@ -503,6 +522,7 @@ namespace PixelCreatures.Examples
                 string style = SelectedStyleId;
                 ulong seed = StableHash.SeedFromText(_seedInput.Text);
                 bool showEquipment = _equipmentToggle.ButtonPressed;
+                bool topologyFirst = _topologyFirstToggle.ButtonPressed;
                 bool isBiped = string.Equals(familyId, "biped", StringComparison.OrdinalIgnoreCase);
 
                 CreatureGenome genome = CreatureRuntime.Sample(familyId, seed);
@@ -523,7 +543,7 @@ namespace PixelCreatures.Examples
                     anatomy = EquipmentGenerator.Apply(anatomy, style, _equipmentSeeds);
 
                 ObjMeshResult result = ObjMeshExporter.Export(
-                    anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel);
+                    anatomy, sides: 20, rings: 12, unitsPerPixel: PreviewUnitsPerPixel, topologyFirst: topologyFirst);
                 ObjPreviewMeshBuilder.ReplaceModelMeshes(_modelRoot, result.ObjText, model.Palette);
 
                 _lastObj = result.ObjText;
@@ -537,6 +557,10 @@ namespace PixelCreatures.Examples
                     $"模型键：{anatomy.AnatomyKey:X16}" +
                     $"\n身体 Seed：{seed}" +
                     $"\n装备 Seed：{_masterGearSeed}" +
+                    $"\n方法：{result.MethodSummary}" +
+                    (topologyFirst
+                        ? $"\n拓扑诊断：边界边 {result.BoundaryEdges} · 非流形边 {result.NonManifoldEdges}\n连通块 {result.ConnectedComponents} · 失败连接 {result.FailedConnections}"
+                        : string.Empty) +
                     (_compatibilityNote.Length > 0 ? $"\n\n{_compatibilityNote}" : string.Empty);
                 _exportButton.Disabled = false;
             }

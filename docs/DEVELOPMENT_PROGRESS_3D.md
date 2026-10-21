@@ -300,3 +300,53 @@ Do not mark the 3D visual work complete yet.
 
 Horn/ear root embedding now scales with the actual appendage root radius rather than forcing every root to a fixed percentage of the skull. Horn eye-clearance offsets are followed by a root re-seat, repeated for up to three small corrections, so avoiding an eye does not simply pull the horn free of the cranium. The horn regression also checks that the root remains inside the skull after eye avoidance.
 
+
+
+## 2026-10-21 — Topology-first body mesh prototype (separate experimental branch)
+
+**Branch:** \`experiment/topology-first-mesh\`  
+**Base:** \`feature/3d-modular-equipment\`  
+**Status:** implementation added; build, harness tests and Godot visual comparison are pending. Do not merge or describe the model as visually approved yet.
+
+This is an intentionally different construction route, not a parameter pass on the previous SDF or independent-shell pipelines.
+
+- New \`TopologyFirstBodyMesher\` builds parametric ellipsoid surface patches from structural anatomy primitives.
+- Eligible tapered segments become graph edges, not closed frustum shells. Their endpoints attach to nearby semantic patches or explicit joint patches.
+- Adjacent skeletal patches are connected with a minimal set of inferred edges only when their source volumes overlap.
+- Each connection attempts to cut an explicit boundary loop from both patches, then stitches the loops with a tapered bridge using shared vertex indices.
+- If a cap cannot produce a usable boundary loop, that connection is rolled back and the source patches remain closed; the failure is counted rather than leaving an open hole.
+- The topology preview path does **not** call \`ImplicitBodyMesher.Build\`, does not use SDF/voxel surface extraction, and does not use multiview depth reconstruction.
+- \`ObjMeshExporter.Export(..., topologyFirst: true)\` exposes the route without changing the legacy default. The 3D preview has an opt-in checkbox and reports boundary edges, non-manifold edges, connected components and failed connections.
+- Added a deterministic CoreHarness regression with a torso patch, limb patch and explicit segment. It requires a closed two-manifold, one connected component, no failed connection, and no duplicate primitive-shell export.
+
+### Acceptance gate
+
+1. Build the CoreHarness and Godot .NET project on the project's Godot 4.7.1 .NET toolchain.
+2. Run \`export.topology_first_body_stitches_shared_loops\` and the full CoreHarness suite.
+3. In the preview, turn off equipment and compare the same biped seed in legacy mode and topology-first mode. Inspect front, side and rear views.
+4. The first pass is accepted only if the torso/neck/head/limbs read as a connected body, and the diagnostics report **0 boundary edges, 0 non-manifold edges, 1 connected component and 0 failed connections** for the controlled test.
+5. Then inspect the fixed user seeds and a quadruped. Do not tune by changing SDF resolution or falling back to independent closed shells; fix patch graph, cap selection or loop stitching directly.
+6. Wings, horns, teeth, eyes and equipment remain separate semantic detail modules in this first body-topology prototype. They are not evidence that those modules have passed visual acceptance.
+
+The experiment deliberately prioritizes a falsifiable topology test over expanding feature coverage. If the controlled test or the first biped render fails, stop and repair the explicit patch/loop algorithm before adding more geometry heuristics.
+
+
+### 2026-10-21 follow-up — first visual review rejected; mesh patch revision pending validation
+
+The first Godot preview for the topology-first route was visually unacceptable. The captured diagnostic values were:
+
+| Seed / creature | Boundary edges | Non-manifold edges | Components | Failed connections |
+|---|---:|---:|---:|---:|
+| 12345 (biped, orange) | 252 | 74 | 5 | 4 |
+| 14960774727119815275 (biped, green) | 162 | 44 | 6 | 5 |
+
+The result showed obvious patch seams and at least one disconnected foot. This version is **rejected**; do not merge it or treat the route as successful.
+
+Changes added after that review, still awaiting a real build and Godot rerun:
+
+- Replaced the low-resolution latitude/longitude patch with a uniformly tessellated level-3 icosphere (642 vertices / 1280 triangles per source patch). The previous mesh had poor directional resolution around arbitrary joint axes, so openings often collapsed into irregular boundary fragments.
+- Replaced the fixed cutout-angle clamp with pairwise angle reduction so nearby joint openings are less likely to overlap into branched boundary graphs.
+- Enabled OBJ smoothing groups for mesh faces, while retaining flat shading for standalone triangle details. This addresses the visibly faceted triangle shading; it does not substitute for valid topology.
+- Extended the controlled regression to assert the exported smooth-shading group.
+
+**Next acceptance gate:** rebuild and run the controlled CoreHarness test first. Then regenerate the two exact seeds above and confirm zero boundary edges, zero non-manifold edges, one connected component and zero failed connections before evaluating the appearance. If the test still fails, do not tune the screenshot by eye: inspect the extracted boundary loops and zipper bridge edge-use counts, then repair or replace that stage. The visual screenshot alone is not enough to claim the new revision is fixed.
