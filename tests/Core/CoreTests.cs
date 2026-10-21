@@ -220,6 +220,12 @@ namespace PixelCreatures.Tests
                 "Output must identify the independent topology construction path");
             ctx.True(first.Mesh.ObjText.Contains("o topology_", StringComparison.Ordinal),
                 "The body must be emitted as indexed semantic topology patches");
+            int topologyObjects = first.Mesh.ObjText.Split("o topology_", StringSplitOptions.None).Length - 1;
+            ctx.True(topologyObjects > 1,
+                "Each source primitive must retain its own indexed surface; connected anatomy must not collapse into one radial envelope");
+            ctx.True(first.FittedMeanIoU >= first.TemplateMeanIoU - 0.002 &&
+                first.FittedWorstIoU >= first.TemplateWorstIoU - 0.02,
+                "A multi-view fit that materially worsens silhouette metrics must be rejected");
             ctx.True(!first.Mesh.ObjText.Contains("o organic_body_", StringComparison.Ordinal),
                 "The final semantic-topology output must not reuse the old SDF skin mesh");
             ctx.True(first.Mesh.ObjText.Contains("o feature_", StringComparison.Ordinal),
