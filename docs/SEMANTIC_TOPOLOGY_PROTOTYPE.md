@@ -13,14 +13,13 @@ Instead, it creates an indexed surface for each original ellipsoid or tapered se
 ## Current algorithm
 
 1. Capture the original renderer at eight yaw directions by default.
-2. Sample the surface of each eligible source ellipsoid or tapered segment. Samples are control data only; they are not emitted as the final skin mesh.
-3. Build a regular indexed surface directly from each source ellipsoid or tapered segment, retaining its exact source transform and dimensions. Different source primitives are never combined into a bounding-volume envelope.
-4. Fit these fixed triangle surfaces against multi-view constraints, with a strict total-displacement limit. If fitting lowers the silhouette score materially, discard the fit and restore the source surfaces.
-5. Relax surface vertices using two kinds of evidence:
+2. Build one regular indexed surface directly from each eligible source ellipsoid or tapered segment, retaining its exact source transform and dimensions. Different source primitives are never combined into a bounding-volume envelope.
+3. Fit these fixed triangle surfaces against multi-view constraints, with a strict total-displacement limit. If fitting lowers the silhouette score materially, discard the fit and restore the source surfaces.
+4. Relax surface vertices using two kinds of evidence:
    - if a vertex projects outside the original silhouette, move its projection toward the nearest nearby visible pixel while preserving view depth;
    - if a vertex is in front of the original front-depth sample for the same semantic group, move it slightly backward.
-6. Restore non-skin details and the original bone-anchored eye/nostril/spot geometry, then emit OBJ + MTL.
-7. Report the old SDF skin's silhouette IoU, the new template's IoU before relaxation, and its IoU after relaxation. These metrics measure silhouette only, not anatomy or surface quality.
+5. Restore non-skin details and the original bone-anchored eye/nostril/spot geometry, then emit OBJ + MTL.
+6. Report the old SDF skin's silhouette IoU, the new template's IoU before relaxation, and its IoU after relaxation. These metrics measure silhouette only, not anatomy or surface quality.
 
 ## Preview
 
@@ -46,8 +45,7 @@ The test checks deterministic output, non-empty indexed topology, restored facia
 ## Known limitations — do not overstate this prototype
 
 - The mesh still consists of separate overlapping primitive shells; this avoids the radial-envelope blobs but does not yet create a watertight, continuous skin. Intersections and seams can remain.
-- Connected components are based on source primitive bounds. They are not yet authored anatomical templates with explicit shared boundary loops.
-- Separate component surfaces can still overlap or show seams. This prototype does not yet provide a watertight, continuous whole-creature skin.
+- The source primitive shells are not yet joined by shared anatomical boundary loops, so this is not a watertight, continuous whole-creature skin.
 - The mouth interior and teeth are still restored as detail geometry; the new path does not yet create a true articulated jaw or a topology-aware oral cavity.
 - Each topology face samples the original renderer's exact palette index and uses an unshaded `px_*` material. This preserves an approximate version of the pixel pattern at triangle resolution, but it is not a UV texture bake; fine patterns can be lost or smeared across large faces.
 - There is no Skeleton3D skinning, animation, UV unwrap, or GLB pipeline.
