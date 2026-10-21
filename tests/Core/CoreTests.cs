@@ -203,6 +203,8 @@ namespace PixelCreatures.Tests
                 "consumed source skin and connector primitives must not reappear as independent shells");
             ctx.True(exported.MethodSummary.Contains("显式拓扑", StringComparison.Ordinal),
                 "the exported preview should identify the topology-first algorithm");
+            ctx.True(exported.ObjText.Contains("s 1", StringComparison.Ordinal),
+                "the OBJ should enable smooth normals for connected body surfaces");
         }
 
         private static void PreviewVisibleMouthSmoke(TestContext ctx)
