@@ -171,7 +171,7 @@ namespace PixelCreatures.Tests
         {
             var builder = new AnatomyBuilder("topology_first_test", 1);
             int root = builder.Bone("root", -1, Vec3.Zero, Quat.Identity, 0, BoneRole.Root);
-            int limb = builder.Bone("limb", root, new Vec3(5, 0, 0), Quat.Identity, 5, BoneRole.Leg, 1);
+            int limb = builder.Bone("limb", root, new Vec3(5, 0, 0), Quat.Identity, 5, BoneRole.Foot, 1);
             int body = builder.Group("body", 1.0);
             builder.Ellipsoid(body, root, Vec3.Zero, new Vec3(4, 4, 4), MaterialSlot.Primary).Tag = "body.core";
             builder.Ellipsoid(body, limb, Vec3.Zero, new Vec3(1.2, 1.2, 1.2), MaterialSlot.Primary).Tag = "limb.joint";
