@@ -252,7 +252,7 @@ namespace PixelCreatures.Core.Export
             // Extract parametric patches and retry without any connection whose cap could not be
             // represented by a clean boundary loop. A failed bridge therefore leaves closed source
             // patches rather than a hole or an open, torn surface.
-            for (int pass = 0; pass < 4; pass++)
+            for (int pass = 0; pass <= connections.Count; pass++)
             {
                 result.Vertices.Clear();
                 result.Faces.Clear();
