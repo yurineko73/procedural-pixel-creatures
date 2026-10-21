@@ -16,13 +16,25 @@ namespace PixelCreatures.Core.Export
         public string MtlText { get; }
         public int Vertices { get; }
         public int Triangles { get; }
+        public string MethodSummary { get; }
+        public int BoundaryEdges { get; }
+        public int NonManifoldEdges { get; }
+        public int ConnectedComponents { get; }
+        public int FailedConnections { get; }
 
-        public ObjMeshResult(string objText, string mtlText, int vertices, int triangles)
+        public ObjMeshResult(string objText, string mtlText, int vertices, int triangles,
+            string methodSummary = "Legacy SDF / voxel union", int boundaryEdges = 0,
+            int nonManifoldEdges = 0, int connectedComponents = 0, int failedConnections = 0)
         {
             ObjText = objText;
             MtlText = mtlText;
             Vertices = vertices;
             Triangles = triangles;
+            MethodSummary = methodSummary;
+            BoundaryEdges = boundaryEdges;
+            NonManifoldEdges = nonManifoldEdges;
+            ConnectedComponents = connectedComponents;
+            FailedConnections = failedConnections;
         }
     }
 
@@ -33,7 +45,7 @@ namespace PixelCreatures.Core.Export
     public static class ObjMeshExporter
     {
         public static ObjMeshResult Export(CreatureAnatomy anatomy, int sides = 16, int rings = 8,
-            double unitsPerPixel = 0.01, string materialFile = "creature.mtl")
+            double unitsPerPixel = 0.01, string materialFile = "creature.mtl", bool topologyFirst = false)
         {
             if (anatomy == null) throw new ArgumentNullException(nameof(anatomy));
             if (sides < 6 || sides > 128) throw new ArgumentOutOfRangeException(nameof(sides));
@@ -44,23 +56,30 @@ namespace PixelCreatures.Core.Export
                 throw new ArgumentException("A single MTL file name is required.", nameof(materialFile));
 
             var obj = new StringBuilder();
-            obj.AppendLine("# Procedural Pixel Creatures - static primitive preview; not a skinned mesh");
+            obj.AppendLine(topologyFirst
+                ? "# Procedural Pixel Creatures - topology-first explicit patch mesh; no SDF / voxel surface"
+                : "# Procedural Pixel Creatures - static primitive preview; not a skinned mesh");
             obj.Append("mtllib ").AppendLine(materialFile);
             var emitter = new MeshEmitter(obj, unitsPerPixel);
-            var organicBody = ImplicitBodyMesher.Build(anatomy);
-            var garmentMeshes = ImplicitBodyMesher.BuildClothingGroups(anatomy);
-            var garmentFit = PreviewGarmentFit.Evaluate(anatomy, garmentMeshes);
-            var mergedPrimitiveIndices = new HashSet<int>(organicBody.PrimitiveIndices);
+            TopologyFirstBodyMesher.MeshData? topologyBody = topologyFirst ? TopologyFirstBodyMesher.Build(anatomy) : null;
+            ImplicitBodyMesher.MeshData? organicBody = topologyFirst ? null : ImplicitBodyMesher.Build(anatomy);
+            var garmentMeshes = topologyFirst
+                ? new List<ImplicitBodyMesher.MeshData>()
+                : ImplicitBodyMesher.BuildClothingGroups(anatomy);
+            PreviewGarmentFit.Result? garmentFit = topologyFirst ? null : PreviewGarmentFit.Evaluate(anatomy, garmentMeshes);
+            var mergedPrimitiveIndices = topologyFirst
+                ? new HashSet<int>(topologyBody!.PrimitiveIndices)
+                : new HashSet<int>(organicBody!.PrimitiveIndices);
             foreach (var garment in garmentMeshes)
                 mergedPrimitiveIndices.UnionWith(garment.PrimitiveIndices);
-            mergedPrimitiveIndices.UnionWith(garmentFit.ReplacedPrimitiveIndices);
+            if (garmentFit != null) mergedPrimitiveIndices.UnionWith(garmentFit.ReplacedPrimitiveIndices);
             var sockets = new PreviewEquipmentSockets(anatomy);
             var headAttachmentFit = new PreviewHeadAttachmentFit(anatomy);
             var legChainFit = new PreviewSegmentChainFit(anatomy);
 
             for (int index = 0; index < anatomy.Primitives.Count; index++)
             {
-                if (mergedPrimitiveIndices.Contains(index) || legChainFit.PrimitiveIndices.Contains(index)) continue;
+                if (mergedPrimitiveIndices.Contains(index) || (!topologyFirst && legChainFit.PrimitiveIndices.Contains(index))) continue;
                 PrimitiveDef source = anatomy.Primitives[index];
                 PrimitiveDef p;
                 // A tooth is fitted to the *upper lip*, and a claw to its *own toe*.
@@ -104,43 +123,53 @@ namespace PixelCreatures.Core.Export
             // A leg chain uses the original three bone joints, with no intervening grid
             // resampling. Rounded joints overlap the adjacent tube ends and the thorax,
             // so even sub-voxel arthropod legs cannot turn into disconnected island pieces.
-            foreach (PreviewSegmentChainFit.Chain chain in legChainFit.Chains)
+            if (!topologyFirst)
             {
-                for (int i = 0; i < chain.Segments.Count; i++)
+                foreach (PreviewSegmentChainFit.Chain chain in legChainFit.Chains)
                 {
-                    PreviewSegmentChainFit.Segment segment = chain.Segments[i];
-                    obj.Append("o arthropod_leg_").Append(chain.Group).Append('_').Append(i).AppendLine();
-                    obj.Append("usemtl ").AppendLine(segment.Material.ToString());
-                    emitter.Frustum(segment.Start, segment.End,
-                        segment.StartRadius, segment.EndRadius, Math.Max(10, sides));
-                    emitter.Ellipsoid(v => segment.Start + v,
-                        new Vec3(segment.StartRadius, segment.StartRadius, segment.StartRadius),
-                        Math.Max(10, sides), Math.Max(6, rings));
-                    if (i == chain.Segments.Count - 1)
-                        emitter.Ellipsoid(v => segment.End + v,
-                            new Vec3(segment.EndRadius, segment.EndRadius, segment.EndRadius),
+                    for (int i = 0; i < chain.Segments.Count; i++)
+                    {
+                        PreviewSegmentChainFit.Segment segment = chain.Segments[i];
+                        obj.Append("o arthropod_leg_").Append(chain.Group).Append('_').Append(i).AppendLine();
+                        obj.Append("usemtl ").AppendLine(segment.Material.ToString());
+                        emitter.Frustum(segment.Start, segment.End,
+                            segment.StartRadius, segment.EndRadius, Math.Max(10, sides));
+                        emitter.Ellipsoid(v => segment.Start + v,
+                            new Vec3(segment.StartRadius, segment.StartRadius, segment.StartRadius),
                             Math.Max(10, sides), Math.Max(6, rings));
+                        if (i == chain.Segments.Count - 1)
+                            emitter.Ellipsoid(v => segment.End + v,
+                                new Vec3(segment.EndRadius, segment.EndRadius, segment.EndRadius),
+                                Math.Max(10, sides), Math.Max(6, rings));
+                    }
                 }
             }
 
             // Emit fused skin and garment surfaces after the remaining standalone details.
             // These opaque surfaces replace the overlapping closed shells that previously exposed
             // internal body faces and made stacked clothing ellipsoids look like separate blobs.
-            emitter.AppendMesh(organicBody, "organic_body");
-            foreach (var garment in garmentMeshes)
+            if (topologyFirst)
             {
-                if (garmentFit.ReplacedGroupIndices.Contains(garment.GroupIndex)) continue;
-                string groupName = anatomy.Groups[garment.GroupIndex].Name ?? "garment";
-                emitter.AppendMesh(garment, "garment_" + groupName.Replace('.', '_').Replace(' ', '_'));
+                emitter.AppendMesh(topologyBody!, "topology_body");
             }
-            if (garmentFit.FallbackHem != null)
+            else
             {
-                PrimitiveDef hem = garmentFit.FallbackHem;
-                obj.AppendLine("o garment_fitted_short_hem");
-                obj.AppendLine("usemtl Cloth");
-                Xform pelvis = anatomy.Skeleton.RestWorld(hem.BoneA);
-                Xform local = Xform.FromQuat(hem.LocalRotation, hem.LocalA);
-                emitter.Ellipsoid(v => pelvis.Point(local.Point(v)), hem.Radii, sides, rings);
+                emitter.AppendMesh(organicBody!, "organic_body");
+                foreach (var garment in garmentMeshes)
+                {
+                    if (garmentFit != null && garmentFit.ReplacedGroupIndices.Contains(garment.GroupIndex)) continue;
+                    string groupName = anatomy.Groups[garment.GroupIndex].Name ?? "garment";
+                    emitter.AppendMesh(garment, "garment_" + groupName.Replace('.', '_').Replace(' ', '_'));
+                }
+                if (garmentFit?.FallbackHem != null)
+                {
+                    PrimitiveDef hem = garmentFit.FallbackHem;
+                    obj.AppendLine("o garment_fitted_short_hem");
+                    obj.AppendLine("usemtl Cloth");
+                    Xform pelvis = anatomy.Skeleton.RestWorld(hem.BoneA);
+                    Xform local = Xform.FromQuat(hem.LocalRotation, hem.LocalA);
+                    emitter.Ellipsoid(v => pelvis.Point(local.Point(v)), hem.Radii, sides, rings);
+                }
             }
 
             // Facial features are stored separately from body primitives in CreatureAnatomy.
@@ -148,7 +177,10 @@ namespace PixelCreatures.Core.Export
             for (int index = 0; index < anatomy.Features.Count; index++)
                 EmitFeature(obj, emitter, anatomy, anatomy.Features[index], index, sides, rings);
 
-            return new ObjMeshResult(obj.ToString(), BuildDefaultMaterials(), emitter.VertexCount, emitter.TriangleCount);
+            return new ObjMeshResult(obj.ToString(), BuildDefaultMaterials(), emitter.VertexCount, emitter.TriangleCount,
+                topologyFirst ? "显式拓扑补片 + 共享边界环（不使用 SDF / 体素）" : "Legacy SDF / voxel body union",
+                topologyBody?.BoundaryEdgeCount ?? 0, topologyBody?.NonManifoldEdgeCount ?? 0,
+                topologyBody?.ConnectedComponentCount ?? 0, topologyBody?.FailedConnections ?? 0);
         }
 
         private static void EmitFeature(StringBuilder obj, MeshEmitter emitter, CreatureAnatomy anatomy,
@@ -352,6 +384,28 @@ namespace PixelCreatures.Core.Export
                     // makes generated smooth normals cancel to zero in indexed mesh consumers.
                     int reverseA = Vertex(a), reverseB = Vertex(b), reverseC = Vertex(c);
                     Face(reverseC, reverseB, reverseA);
+                }
+            }
+
+            public void AppendMesh(TopologyFirstBodyMesher.MeshData mesh, string objectPrefix)
+            {
+                if (mesh == null || mesh.Vertices.Count < 3 || mesh.Faces.Count == 0) return;
+                int[] globalIndices = new int[mesh.Vertices.Count];
+                for (int i = 0; i < mesh.Vertices.Count; i++) globalIndices[i] = Vertex(mesh.Vertices[i]);
+
+                foreach (MaterialSlot material in Enum.GetValues<MaterialSlot>())
+                {
+                    if (material == MaterialSlot.Count) continue;
+                    bool hasFaces = false;
+                    foreach (var face in mesh.Faces)
+                        if (face.Material == material) { hasFaces = true; break; }
+                    if (!hasFaces) continue;
+
+                    _obj.Append("o ").Append(objectPrefix).Append('_').AppendLine(material.ToString());
+                    _obj.Append("usemtl ").AppendLine(material.ToString());
+                    foreach (var face in mesh.Faces)
+                        if (face.Material == material)
+                            Face(globalIndices[face.A], globalIndices[face.B], globalIndices[face.C]);
                 }
             }
 
