@@ -17,7 +17,7 @@ namespace PixelCreatures.Core.Export
         {
             CreatureAnatomy anatomy = model.Anatomy;
             var obj = new StringBuilder();
-            obj.AppendLine("# Semantic topology prototype: indexed per-region radial surfaces + multiview vertex relaxation");
+            obj.AppendLine("# Semantic topology prototype: independent indexed source primitives + bounded multiview fitting");
             obj.AppendLine("mtllib creature.mtl");
             var writer = new ObjWriter(obj, unitsPerPixel);
             ViewConstraint[] views = CreateViews(captures);
