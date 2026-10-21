@@ -1,7 +1,7 @@
 // Experimental semantic-topology mesh path.
 // The final skin mesh is not generated from SDF or voxel volumes. The legacy SDF exporter is
 // called only to measure a comparison baseline; its geometry is never appended to the final output.
-// The new path builds indexed semantic surfaces and relaxes their vertices against multi-view data.
+// The new path preserves source primitive boundaries and relaxes their vertices against multi-view data.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -21,10 +21,9 @@ namespace PixelCreatures.Core.Export
         public int RelaxationPasses = 3;
         public int SilhouetteSearchRadius = 3;
         public double DepthSlack = 0.25;
-        public double MaxMovePerPass = 0.30;
+        public double MaxMovePerPass = 0.15;
+        public double MaxTotalMove = 0.50;
         public double UnitsPerPixel = 0.04;
-        public int SampleSides = 24;
-        public int SampleRings = 12;
     }
 
     public sealed class SemanticTopologyResult
@@ -60,7 +59,7 @@ namespace PixelCreatures.Core.Export
 
     /// <summary>
     /// A separate mesh construction path: semantic primitive samples seed a regular indexed
-    /// radial surface for each connected anatomy component. Vertex positions are then constrained
+    /// indexed surface for each source anatomy primitive. Vertex positions are then constrained
     /// by multi-view raster observations. SDF output is used only as a comparison metric, not as final geometry.
     /// </summary>
     public static partial class SemanticTopologyPrototype
@@ -72,15 +71,6 @@ namespace PixelCreatures.Core.Export
             public Vec3 Center;
             public readonly List<Vec3> Vertices = new List<Vec3>();
             public readonly List<(int A, int B, int C)> Faces = new List<(int, int, int)>();
-        }
-
-        private sealed class PrimitiveSample
-        {
-            public int PrimitiveIndex;
-            public int GroupIndex;
-            public List<Vec3> Points = new List<Vec3>();
-            public Vec3 Min;
-            public Vec3 Max;
         }
 
         private sealed class ViewConstraint
@@ -99,70 +89,21 @@ namespace PixelCreatures.Core.Export
             CreatureAnatomy anatomy = model.Anatomy;
             PixelDepthCapture[] captures = MultiviewReconstructor.Capture(model, options.Directions);
             ViewConstraint[] views = CreateViews(captures);
-            var samplesByGroup = new SortedDictionary<int, List<PrimitiveSample>>();
+            var patches = new List<Patch>();
             var corePrimitiveIndices = new HashSet<int>();
 
+            // Preserve the source anatomy's primitive boundaries. A connected-component radial
+            // envelope destroys concavities and can wrap an entire torso/limb chain into a blob.
+            // Each source ellipsoid or tapered segment therefore gets its own indexed surface.
             for (int i = 0; i < anatomy.Primitives.Count; i++)
             {
                 PrimitiveDef primitive = anatomy.Primitives[i];
                 if (!IsCoreSkin(anatomy, primitive)) continue;
-                List<Vec3> samples = SamplePrimitive(anatomy, primitive, options.SampleSides, options.SampleRings);
-                if (samples.Count < 12) continue;
-                GetBounds(samples, out Vec3 min, out Vec3 max);
-                var sampledPrimitive = new PrimitiveSample
-                {
-                    PrimitiveIndex = i,
-                    GroupIndex = primitive.Group,
-                    Points = samples,
-                    Min = min,
-                    Max = max,
-                };
-                if (!samplesByGroup.TryGetValue(primitive.Group, out List<PrimitiveSample>? regionSamples) || regionSamples == null)
-                {
-                    regionSamples = new List<PrimitiveSample>();
-                    samplesByGroup.Add(primitive.Group, regionSamples);
-                }
-                regionSamples.Add(sampledPrimitive);
-            }
-
-            var patches = new List<Patch>();
-            foreach (KeyValuePair<int, List<PrimitiveSample>> pair in samplesByGroup)
-            {
-                // A legacy semantic group can contain both left and right limbs. Split it into
-                // spatially connected components first so they do not collapse into one radial blob.
-                var pending = new List<PrimitiveSample>(pair.Value);
-                double connectionGap = Math.Max(1.0, anatomy.Groups[pair.Key].BlendRadius * 1.5);
-                int componentIndex = 0;
-                while (pending.Count > 0)
-                {
-                    var component = new List<PrimitiveSample> { pending[0] };
-                    pending.RemoveAt(0);
-                    for (int cursor = 0; cursor < component.Count; cursor++)
-                    {
-                        for (int candidate = pending.Count - 1; candidate >= 0; candidate--)
-                        {
-                            if (BoundsGap(component[cursor], pending[candidate]) > connectionGap) continue;
-                            component.Add(pending[candidate]);
-                            pending.RemoveAt(candidate);
-                        }
-                    }
-
-                    var regionSamples = new List<Vec3>();
-                    foreach (PrimitiveSample primitiveSample in component)
-                        regionSamples.AddRange(primitiveSample.Points);
-                    if (regionSamples.Count < 12) continue;
-                    string regionName = (anatomy.Groups[pair.Key].Name ?? "group") +
-                        "_part_" + componentIndex.ToString(CultureInfo.InvariantCulture);
-                    Patch patch = BuildRadialPatch(pair.Key, regionName, regionSamples,
-                        options.LatitudeSegments, options.LongitudeSegments);
-                    if (patch.Vertices.Count >= 8 && patch.Faces.Count >= 12)
-                    {
-                        patches.Add(patch);
-                        foreach (PrimitiveSample primitiveSample in component)
-                            corePrimitiveIndices.Add(primitiveSample.PrimitiveIndex);
-                    }
-                    componentIndex++;
-                }
+                Patch patch = BuildPrimitivePatch(anatomy, primitive, i,
+                    options.LatitudeSegments, options.LongitudeSegments);
+                if (patch.Vertices.Count < 8 || patch.Faces.Count < 12) continue;
+                patches.Add(patch);
+                corePrimitiveIndices.Add(i);
             }
             if (patches.Count == 0)
                 throw new InvalidOperationException("No semantic skin regions could be converted to indexed topology.");
@@ -192,9 +133,8 @@ namespace PixelCreatures.Core.Export
                 options.SilhouetteSearchRadius < 1 || options.SilhouetteSearchRadius > 8 ||
                 !DMath.IsFinite(options.DepthSlack) || options.DepthSlack < 0 || options.DepthSlack > 3 ||
                 !DMath.IsFinite(options.MaxMovePerPass) || options.MaxMovePerPass <= 0 || options.MaxMovePerPass > 1 ||
-                !DMath.IsFinite(options.UnitsPerPixel) || options.UnitsPerPixel <= 0 ||
-                options.SampleSides < 8 || options.SampleSides > 64 ||
-                options.SampleRings < 4 || options.SampleRings > 32)
+                !DMath.IsFinite(options.MaxTotalMove) || options.MaxTotalMove <= 0 || options.MaxTotalMove > 2 ||
+                !DMath.IsFinite(options.UnitsPerPixel) || options.UnitsPerPixel <= 0)
                 throw new ArgumentOutOfRangeException(nameof(options), "Invalid semantic topology settings.");
         }
 
@@ -233,51 +173,6 @@ namespace PixelCreatures.Core.Export
             return false;
         }
 
-        private static List<Vec3> SamplePrimitive(CreatureAnatomy anatomy, PrimitiveDef p, int sides, int rings)
-        {
-            var points = new List<Vec3>();
-            if (p.BoneA < 0 || p.BoneA >= anatomy.Skeleton.Count) return points;
-            Xform boneA = anatomy.Skeleton.RestWorld(p.BoneA);
-            if (p.Kind == PrimKind.Ellipsoid)
-            {
-                Xform local = Xform.FromQuat(p.LocalRotation, p.LocalA);
-                points.Add(boneA.Point(local.Point(new Vec3(0, -p.Radii.Y, 0))));
-                points.Add(boneA.Point(local.Point(new Vec3(0, p.Radii.Y, 0))));
-                for (int j = 1; j < rings; j++)
-                {
-                    double latitude = -Math.PI * 0.5 + Math.PI * j / rings;
-                    double h = Math.Cos(latitude), y = Math.Sin(latitude);
-                    for (int i = 0; i < sides; i++)
-                    {
-                        double angle = 2.0 * Math.PI * i / sides;
-                        Vec3 surface = new Vec3(p.Radii.X * h * Math.Cos(angle),
-                            p.Radii.Y * y, p.Radii.Z * h * Math.Sin(angle));
-                        points.Add(boneA.Point(local.Point(surface)));
-                    }
-                }
-            }
-            else if (p.Kind == PrimKind.RoundCone && p.BoneB >= 0 && p.BoneB < anatomy.Skeleton.Count)
-            {
-                Vec3 a = boneA.Point(p.LocalA);
-                Vec3 b = anatomy.Skeleton.RestWorld(p.BoneB).Point(p.LocalB);
-                Vec3 axis = (b - a).NormalizedOr(Vec3.UnitY);
-                Vec3 guide = Math.Abs(Vec3.Dot(axis, Vec3.UnitY)) < 0.9 ? Vec3.UnitY : Vec3.UnitX;
-                Vec3 u = Vec3.Cross(axis, guide).NormalizedOr(Vec3.UnitZ);
-                Vec3 v = Vec3.Cross(axis, u).NormalizedOr(Vec3.UnitX);
-                for (int j = 0; j <= rings; j++)
-                {
-                    double t = j / (double)rings;
-                    Vec3 center = Vec3.Lerp(a, b, t);
-                    double radius = p.RadiusA + (p.RadiusB - p.RadiusA) * t;
-                    for (int i = 0; i < sides; i++)
-                    {
-                        double angle = 2.0 * Math.PI * i / sides;
-                        points.Add(center + (u * Math.Cos(angle) + v * Math.Sin(angle)) * radius);
-                    }
-                }
-            }
-            return points;
-        }
 
 
     }
