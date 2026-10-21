@@ -201,3 +201,9 @@ GitHub Actions is configured to run the full checks on Windows for pushes and pu
 
 [MIT](LICENSE), copyright © 2026 idlerunner00. Algorithm attributions and applicable third-party
 terms are preserved in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## 3D semantic-topology experiment
+
+A separate, non-default prototype is available on branch `experiment/semantic-topology-prototype`. It builds an indexed surface per source ellipsoid/tapered segment and applies bounded multi-view silhouette/depth fitting from the original 2D renderer. It does not use SDF union or voxel reconstruction as the final mesh source.
+
+See [the prototype notes](docs/SEMANTIC_TOPOLOGY_PROTOTYPE.md) for the algorithm, preview instructions, tests, and acceptance limits. This is an experiment: component seams, lost concavities, and imperfect mouth/jaw structure are still possible, and visual acceptance is pending.

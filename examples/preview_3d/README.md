@@ -107,3 +107,12 @@ This is code committed but **not verified in a running Godot scene or .NET test 
 ## Multi-view geometry-fit experiment (2026-10-20)
 
 See `docs/GEOMETRY_FIT_PROTOTYPE.md`. This branch adds a third preview toggle that optimizes bounded transforms for major source anatomy groups against original 2D silhouettes. Candidate acceptance is measured against the actual OBJ output from the existing exporter; proxy IoU only guides search direction. The evaluation budget is capped, and this remains experimental until the test harness and a visual Godot inspection pass.
+
+
+## Semantic topology experiment (2026-10-21)
+
+On branch `experiment/semantic-topology-prototype`, the preview includes **语义拓扑网格（实验 / 不含装备）**. Select biped, Body Seed `12345`, turn equipment off, and enable this mode.
+
+This is a separate mesh path: it emits one indexed surface per source ellipsoid or tapered segment, preserving the source transform and dimensions, then applies bounded multi-view silhouette/depth fitting. It does not combine connected primitives into radial envelopes, and does not use the SDF skin mesh or voxel-volume reconstruction as the final body mesh. The SDF exporter is run only to report a comparison baseline score.
+
+Each topology face also samples the original renderer's palette index, so large color regions and some patterns can survive without UVs; this is only per-face color sampling, not a texture bake. This revision avoids the giant radial-envelope blobs, but source primitive shells may still overlap or leave visible seams. Its IoU figures only measure silhouettes. Do not consider it accepted until the same seed has been visually checked from front, side, rear, and intermediate angles and the full repository checks pass. See [the detailed notes](../../docs/SEMANTIC_TOPOLOGY_PROTOTYPE.md).
